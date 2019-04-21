@@ -1,26 +1,59 @@
 #include "qstring.h"
 #include "communication.h"
 #include "QtSerialPort/qserialport.h"
+#include "qthread.h"
 
-communication::communication(QObject *parent) : QObject(parent)
+
+communication::communication(QObject *parent) : QObject(parent),serial_mutex(new QMutex)
 {
     serial_opened = false;
 
-    serial = new QSerialPort(0);
-    wait_rsp_timer = new QTimer(0);
-    serial_mutex = new QMutex;
+    serial = new QSerialPort(parent);
+    wait_rsp_timer = new QTimer(this);
+    wait_rsp_timer->setInterval(50);
+
     crc = new crc16();
 
-    wait_rsp_timer->setInterval(100);
+    /*净重线程*/
+    m_weight = new query_weight(0);
+    m_weight->serial_mutex = serial_mutex;
+
+
+    QThread *weight_thread = new QThread(0);
+    m_weight->moveToThread(weight_thread);
+    weight_thread->start();
+    QObject::connect(m_weight,SIGNAL(req_query_weight()),this,SLOT(on_loop_query_weight_event(void)));
+
+
+
+    /*去皮线程*/
+    m_tare = new tare(0);
+    m_tare->serial_mutex = serial_mutex;
+
+    QThread *tare_thread = new QThread(0);
+    m_tare->moveToThread(tare_thread);
+    tare_thread->start();
+    QObject::connect(m_tare,SIGNAL(req_tare(int)),this,SLOT(on_tare_event(int)));
+
+    /*校准线程*/
+    m_calibration  = new calibration(0);
+    m_calibration->serial_mutex = serial_mutex;
+
+    QThread *calibration_thread = new QThread(0);
+    m_calibration->moveToThread(calibration_thread);
+    calibration_thread->start();
+    QObject::connect(m_calibration,SIGNAL(req_calibration(int,int)),this,SLOT(on_calibration_event(int,int)));
+
 
     QObject::connect(wait_rsp_timer,SIGNAL(timeout()),this,SLOT(on_wait_rsp_timer_timeout()));
-    QObject::connect(serial,SIGNAL(readyRead()),this,SLOT(on_rsp_ready()));
+
+
 }
 
 void communication::on_wait_rsp_timer_timeout()
 {
     /*通信超时 代码-10*/
-    serial_mutex->unlock();
+
      /*去皮*/
     if (req_code == 0x01) {
         emit rsp_tare_result(req_level,-10);
@@ -34,6 +67,8 @@ void communication::on_wait_rsp_timer_timeout()
         qWarning("内部错误：req_code:%d",req_code);
     }
 
+   serial_mutex->unlock();
+
 }
 
 void communication::on_rsp_ready()
@@ -41,7 +76,7 @@ void communication::on_rsp_ready()
     QByteArray rsp_array;
 
     int rc = 0;
-    int weight1,weight2,weight3,weight4;
+    int weight1 = 0,weight2 = 0,weight3 = 0,weight4 = 0;
 
     uint8_t *rsp_data;
     int rsp_size;
@@ -117,6 +152,8 @@ err_exit:
             emit rsp_loop_query_weight_result(rc,weight1,weight2,weight3,weight4);
         }
 
+       serial_mutex->unlock();
+
 }
 
 
@@ -174,18 +211,19 @@ void communication::on_loop_query_weight_event()
 
     uint16_t crc16;
 
-    serial_mutex->lock();
+
+    req_code = 0x03;
+
     query_weight.resize(5);
 
     query_weight[0] = 0x01;
     query_weight[1] = 0x03;
     query_weight[2] = 0x00;
-    query_weight[3] = 0x00;
-    query_weight[4] = 0x00;
+
 
     crc16 = crc->calculate_crc((uint8_t *)query_weight.data(),query_weight.size() - 2);
-    query_weight.insert(3,(char)(crc16 >> 8));
-    query_weight.insert(4,(char)(crc16 & 0xFF));
+    query_weight[3] = (crc16 >> 8);
+    query_weight[4] = (crc16 & 0xFF);
 
     if (serial_opened) {
         serial->write(query_weight.data(),query_weight.size());
@@ -203,18 +241,19 @@ void communication::on_tare_event(int level)
 
     uint16_t crc16;
 
-    serial_mutex->lock();
+    req_code = 0x01;
+    req_level = level;
+
     tare.resize(5);
 
     tare[0] = 0x01;
     tare[1] = 0x01;
     tare[2] = (uint8_t)level ;/*称号*/
-    tare[3] = 0x00;
-    tare[4] = 0x00;
+
 
     crc16 = crc->calculate_crc((uint8_t *)tare.data(),tare.size() - 2);
-    tare.insert(3,(char)(crc16 >> 8));
-    tare.insert(4,(char)(crc16 & 0xFF));
+    tare[3] = (crc16 >> 8);
+    tare[4] = (crc16 & 0xFF);
 
     if (serial_opened) {
         serial->write(tare.data(),tare.size());
@@ -232,7 +271,9 @@ void communication::on_calibration_event(int level,int calibration_weight)
 
     uint16_t crc16;
 
-    serial_mutex->lock();
+    req_code = 0x02;
+    req_param = calibration_weight;
+    req_level = level;
     calibration.resize(7);
 
     calibration[0] = 0x01;
@@ -242,12 +283,11 @@ void communication::on_calibration_event(int level,int calibration_weight)
     calibration[3] = calibration_weight >> 8;
     calibration[4] = calibration_weight & 0xFF;
 
-    calibration[5] = 0x00;
-    calibration[6] = 0x00;
+
 
     crc16 = crc->calculate_crc((uint8_t *)calibration.data(),calibration.size() - 2);
-    calibration.insert(5,(char)(crc16 >> 8));
-    calibration.insert(6,(char)(crc16 & 0xFF));
+    calibration[5] = (crc16 >> 8);
+    calibration[6] = (crc16 & 0xFF);
 
     if (serial_opened) {
         serial->write(calibration.data(),calibration.size());
