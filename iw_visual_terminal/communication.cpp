@@ -2,188 +2,245 @@
 #include "communication.h"
 #include "QtSerialPort/qserialport.h"
 #include "qthread.h"
+#include "qmutex.h"
 
-
-communication::communication(QObject *parent) : QObject(parent),serial_mutex(new QMutex)
+communication::communication(QObject *parent) : QObject(parent)
 {
-    serial_opened = false;
+    m_opened = false;
+    m_busy = false;
+    rsp_size = 0;
 
-    serial = new QSerialPort(parent);
-    wait_rsp_timer = new QTimer(this);
-    wait_rsp_timer->setInterval(50);
+    m_serial = new QSerialPort(parent);
 
-    crc = new crc16();
+    m_req_queue = new QQueue<req_param>();
 
-    /*净重线程*/
-    m_weight = new query_weight(0);
-    m_weight->serial_mutex = serial_mutex;
+    m_period_query_weight_timer = new QTimer(this);
+    m_period_query_weight_timer->setInterval(QUERY_WEIGHT_TIMEOUT);
 
+    m_rsp_timer = new QTimer(this);
+    m_rsp_timer->setInterval(RSP_TIMEOUT);
 
-    QThread *weight_thread = new QThread(0);
-    m_weight->moveToThread(weight_thread);
-    weight_thread->start();
-    QObject::connect(m_weight,SIGNAL(req_query_weight()),this,SLOT(on_loop_query_weight_event(void)));
+    m_req_timer = new QTimer(this);
+    m_req_timer->setInterval(REQ_TIMEOUT);
 
+    m_frame_timer = new QTimer(this);
+    m_frame_timer->setInterval(FRAME_TIMEOUT);
 
+    m_crc = new crc16();
 
-    /*去皮线程*/
-    m_tare = new tare(0);
-    m_tare->serial_mutex = serial_mutex;
+    QObject::connect(m_serial,SIGNAL(readyRead()),this,SLOT(handle_rsp_ready_event()));
 
-    QThread *tare_thread = new QThread(0);
-    m_tare->moveToThread(tare_thread);
-    tare_thread->start();
-    QObject::connect(m_tare,SIGNAL(req_tare(int)),this,SLOT(on_tare_event(int)));
-
-    /*校准线程*/
-    m_calibration  = new calibration(0);
-    m_calibration->serial_mutex = serial_mutex;
-
-    QThread *calibration_thread = new QThread(0);
-    m_calibration->moveToThread(calibration_thread);
-    calibration_thread->start();
-    QObject::connect(m_calibration,SIGNAL(req_calibration(int,int)),this,SLOT(on_calibration_event(int,int)));
-
-
-    QObject::connect(wait_rsp_timer,SIGNAL(timeout()),this,SLOT(on_wait_rsp_timer_timeout()));
-
-
+    QObject::connect(m_frame_timer,SIGNAL(timeout()),this,SLOT(handle_frame_timeout_event()));
+    QObject::connect(m_rsp_timer,SIGNAL(timeout()),this,SLOT(handle_rsp_timeout_event()));
+    QObject::connect(m_req_timer,SIGNAL(timeout()),this,SLOT(handle_req_timeout_event()));
+    QObject::connect(m_period_query_weight_timer,SIGNAL(timeout()),this,SLOT(handle_query_weight_timeout_event()));
 }
 
-void communication::on_wait_rsp_timer_timeout()
-{
-    /*通信超时 代码-10*/
 
-     /*去皮*/
-    if (req_code == 0x01) {
-        emit rsp_tare_result(req_level,-10);
-    } else if (req_code == 2) {
-        /*校准*/
-        emit rsp_calibration_result(req_level,req_param,-10);
-    } else if (req_code == 3) {
-        /*净重*/
-        emit rsp_loop_query_weight_result(-10,0,0,0,0);
-    } else {
-        qWarning("内部错误：req_code:%d",req_code);
+
+void communication::handle_query_weight_timeout_event()
+{
+    handle_query_weight_req();
+}
+
+/*处理请求队列*/
+void communication::handle_req_timeout_event()
+{
+    req_param req;
+
+    m_req_timer->stop();
+    m_period_query_weight_timer->stop();
+
+    qDebug("出队");
+    if (!m_req_queue->isEmpty()) {
+        req = m_req_queue->dequeue();
+        req_level = req.level;
+        req_code = req.code;
+        req_weight = req.value;
+
+        if (m_opened) {
+            m_serial->write(req.send,req.size);
+            qDebug("start rsp timer.");
+            m_rsp_timer->start(req.timeout);
+
+         } else {
+             qWarning("串口是关闭的，无法发送数据.");
+             handle_rsp_ready_event();
+         }
+
     }
 
-   serial_mutex->unlock();
-
 }
 
-void communication::on_rsp_ready()
+/*接收超时*/
+void communication::handle_rsp_timeout_event()
 {
-    QByteArray rsp_array;
+    rsp_size = 0;
+    handle_frame_timeout_event();
+}
 
-    int rc = 0;
-    int weight1 = 0,weight2 = 0,weight3 = 0,weight4 = 0;
-
-    uint8_t *rsp_data;
-    int rsp_size;
-
+/*接受完成一帧数据*/
+void communication::handle_frame_timeout_event()
+{
+    int rc = -20;
     uint16_t crc_recv,crc_calculate;
 
-    wait_rsp_timer->stop();/*停止定时器*/
+    int weight1 = 0,weight2 = 0,weight3 = 0,weight4 = 0;
+    QString status("错误");
+
+    m_rsp_timer->stop();/*停止定时器*/
+    m_frame_timer->stop();
+
+    m_busy = false;
 
 
-    if (!serial->isOpen()) {
-        rc = -30;
+    if (rsp_size == 0) {
+        rc = -10;
+        qWarning("回应超时");
         goto err_exit;
     }
-        rsp_array = serial->readAll();
-        rsp_data = (uint8_t*)rsp_array.data();
-        rsp_size = rsp_array.size();
 
+    if (rsp_size < 4) {
+        qWarning("回应长度小于4错误");
 
+        rc = -11;/*长度错误*/
+        goto err_exit;
+    }
 
+    crc_recv = rsp[rsp_size - 2] * 256 + rsp[rsp_size - 1];
+    crc_calculate = m_crc->calculate_crc(rsp,rsp_size - 2);
+    if (crc_recv != crc_calculate) {
+        qWarning("crc recv:%d != %d crc calculate.",crc_recv,crc_calculate);
+        rc = -12;/*校验错误*/
+        goto err_exit;
+    }
 
-        if (rsp_size < 4) {
-            qWarning("回应长度小于4错误");
-            rc = -11;/*长度错误*/
-            goto err_exit;
-        }
+    if (req_code != rsp[1]) {
+        qWarning("recv code:%d != req code:%d err.",rsp[1],req_code);
+        rc = -13;/*操作码错误*/
+        goto err_exit;
+    }
 
-        crc_recv = rsp_data[rsp_size - 2] * 256 + rsp_data[rsp_size - 1];
-        crc_calculate = crc->calculate_crc(rsp_data,rsp_size - 2);
-        if (crc_recv != crc_calculate) {
-            qWarning("crc recv:%d != %d crc calculate.",crc_recv,crc_calculate);
-            rc = -12;/*校验错误*/
-            goto err_exit;
-        }
-        switch (req_code ) {
-        case 0x01:/*去皮*/
-        case 0x02:/*校准*/
-            if (rsp_size == 5 && rsp_data[1] == req_code) {
-                if (rsp_data[2] == 0x01) { /*成功*/
-                    rc = 0;
-                } else {
-                    rc = -1;/*失败*/
-                }
-
-            } else {
-                rc = -20;/*协议错误*/
-            }
-        break;
-         case 0x03:/*净重*/
-            if (rsp_size == 24 && rsp_data[1] == 0x03) {
-                weight1 = rsp_data[2] * 256 + rsp_data[3];
-                weight2 = rsp_data[4] * 256 + rsp_data[5];
-                weight3 = rsp_data[6] * 256 + rsp_data[7];
-                weight4 = rsp_data[8] * 256 + rsp_data[9];
+    switch (req_code ) {
+    case REQ_CODE_TARE:/*去皮*/
+    case REQ_CODE_CALIBRATION:/*校准*/
+    case REQ_CODE_UNLOCK:/*开锁*/
+    case REQ_CODE_LOCK:/*关锁*/
+        if (rsp_size == 5 ) {
+            if (rsp[2] == 0x01) { /*成功*/
                 rc = 0;
-
             } else {
-                rc = -20;/*协议错误*/
+                rc = -1;/*失败*/
             }
-        break;
-        default:
-            qWarning("协议错误.");
+
+        } else {
+            rc = -20;/*协议错误*/
+        }
+    break;
+     case REQ_CODE_QUERY_WEIGHT:/*净重*/
+        if (rsp_size == 44 ) {
+            weight1 = rsp[2] * 256 + rsp[3];
+            weight2 = rsp[4] * 256 + rsp[5];
+            weight3 = rsp[6] * 256 + rsp[7];
+            weight4 = rsp[8] * 256 + rsp[9];
+            rc = 0;
+
+        } else {
+            rc = -20;/*协议错误*/
+        }
+    break;
+    case REQ_CODE_QUERY_DOOR_STATUS:/*门状态*/
+    case REQ_CODE_QUERY_LOCK_STATUS:/*锁状态*/
+        if (rsp_size == 5 ) {
+             rc = 0;
+            if (rsp[2] == 0x01) {
+                 status = "打开";
+            } else {
+                 status = "关闭";
+            }
 
         }
+    break;
+    default:
+        qWarning("协议错误.");
+
+    }
 
 
 err_exit:
-        /*去皮*/
-        if (req_code == 0x01) {
-            emit rsp_tare_result(req_level,rc);
-        } else if (req_code == 0x02) {
-            emit rsp_calibration_result(req_level,req_param,rc);
-        } else if (req_code == 0x03) {
-            emit rsp_loop_query_weight_result(rc,weight1,weight2,weight3,weight4);
+    /*去皮*/
+    if (req_code == REQ_CODE_TARE) {
+        emit rsp_tare_result(req_level,rc);
+    } else if (req_code == REQ_CODE_CALIBRATION) {
+        emit rsp_calibration_result(req_level,req_weight,rc);
+    } else if (req_code == REQ_CODE_QUERY_WEIGHT) {
+        emit rsp_query_weight_result(rc,weight1,weight2,weight3,weight4);
+    } else if (req_code == REQ_CODE_UNLOCK) {
+        emit rsp_unlock_result(rc);
+    }else if (req_code == REQ_CODE_LOCK) {
+        emit rsp_lock_result(rc);
+    }else if (req_code == REQ_CODE_QUERY_DOOR_STATUS) {
+        emit rsp_query_door_status(status);
+    }else if(req_code == REQ_CODE_QUERY_LOCK_STATUS) {
+            emit rsp_query_lock_status(status);
         }
 
-       serial_mutex->unlock();
-
+    qDebug("start query weight timer.");
+    m_period_query_weight_timer->start();
+    rsp_size = 0;
 }
+
+/*读到数据*/
+void communication::handle_rsp_ready_event()
+{
+
+    QByteArray rsp_array;
+
+    rsp_array = m_serial->readAll();
+
+    if (rsp_array.size() + rsp_size >= 100) {
+        rsp_size = 0;
+    } else {
+        memcpy(&rsp[rsp_size],(uint8_t*)rsp_array.data(), rsp_array.size());
+        rsp_size += rsp_array.size();
+    }
+
+    m_frame_timer->start();
+}
+
 
 
 
 /*打开串口*/
-void communication::on_open_serial_port_event(QString port_name,int baudrates,int data_bits,int parity)
+void communication::handle_open_serial_port_req(QString port_name,int baudrates,int data_bits,int parity)
 {
 
     bool success;
 
-    serial->setPortName(port_name);
-    serial->setBaudRate(baudrates);
+    m_serial->setPortName(port_name);
+    m_serial->setBaudRate(baudrates);
     if (data_bits == 8) {
-        serial->setDataBits(QSerialPort::Data8);
+        m_serial->setDataBits(QSerialPort::Data8);
     } else {
-       serial->setDataBits(QSerialPort::Data7);
+       m_serial->setDataBits(QSerialPort::Data7);
     }
 
     if (parity == 0){
-        serial->setParity(QSerialPort::NoParity);
+        m_serial->setParity(QSerialPort::NoParity);
     } else if (parity == 1){
-        serial->setParity(QSerialPort::OddParity);
+        m_serial->setParity(QSerialPort::OddParity);
     } else  {
-         serial->setParity(QSerialPort::EvenParity);
+         m_serial->setParity(QSerialPort::EvenParity);
     }
 
-    success = serial->open(QSerialPort::ReadWrite);
+    success = m_serial->open(QSerialPort::ReadWrite);
     if (success) {
         qDebug("打开串口成功.");
-        serial_opened = true;
+        m_opened = true;
+
+        m_req_timer->start();/*开始请求*/
+        m_period_query_weight_timer->start();
+
         emit rsp_open_serial_port_result(0);/*发送成功信号*/
     } else {
         qWarning("打开串口失败.");
@@ -193,112 +250,276 @@ void communication::on_open_serial_port_event(QString port_name,int baudrates,in
 
 
 /*关闭串口*/
-void communication::on_close_serial_port_event(QString port_name)
+void communication::handle_close_serial_port_req(QString port_name)
 {
     (void) port_name;
 
-    serial->flush();
+    m_serial->flush();
 
-    serial->close();
+    m_serial->close();
+
+    m_period_query_weight_timer->stop();
+    m_req_timer->stop();
+    m_rsp_timer->stop();
+    m_frame_timer->stop();
+
+    m_opened = false;
 
     emit rsp_close_serial_port_result(0);/*发送关闭串口成功信号*/
 }
 
 /*轮询净重值*/
-void communication::on_loop_query_weight_event()
+
+void communication::handle_query_weight_req()
 {
-    QByteArray query_weight;
+    req_param query_weight;
 
     uint16_t crc16;
 
-
-    req_code = 0x03;
-
-    query_weight.resize(5);
-
-    query_weight[0] = 0x01;
-    query_weight[1] = 0x03;
-    query_weight[2] = 0x00;
-
-
-    crc16 = crc->calculate_crc((uint8_t *)query_weight.data(),query_weight.size() - 2);
-    query_weight[3] = (crc16 >> 8);
-    query_weight[4] = (crc16 & 0xFF);
-
-    if (serial_opened) {
-        serial->write(query_weight.data(),query_weight.size());
-        wait_rsp_timer->start();/*启动回应超时定时器*/
-    } else {
-        qWarning("串口是关闭的，无法发送数据.");
+    if (m_opened == false){
+        return;
     }
+
+    query_weight.timeout = RSP_TIMEOUT;
+
+    query_weight.code = REQ_CODE_QUERY_WEIGHT;
+
+    query_weight.size = 5;
+
+    query_weight.send[0] = 0x01;
+    query_weight.send[1] = 0x03;
+    query_weight.send[2] = 0x00;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)query_weight.send,query_weight.size - 2);
+    query_weight.send[3] = (crc16 >> 8);
+    query_weight.send[4] = (crc16 & 0xFF);
+
+    if (m_req_queue->size() == 0) {
+        m_req_queue->enqueue(query_weight);
+    }
+        if (m_busy == false)
+        {
+            m_busy = true;
+            m_req_timer->start();
+        }
+
+
+    qDebug("weight queue size:%d.",m_req_queue->size());
 }
 
 
 /*去皮*/
-void communication::on_tare_event(int level)
+void communication::handle_tare_req(int level)
 {
-    QByteArray tare;
+    req_param tare;
 
     uint16_t crc16;
 
-    req_code = 0x01;
-    req_level = level;
-
-    tare.resize(5);
-
-    tare[0] = 0x01;
-    tare[1] = 0x01;
-    tare[2] = (uint8_t)level ;/*称号*/
-
-
-    crc16 = crc->calculate_crc((uint8_t *)tare.data(),tare.size() - 2);
-    tare[3] = (crc16 >> 8);
-    tare[4] = (crc16 & 0xFF);
-
-    if (serial_opened) {
-        serial->write(tare.data(),tare.size());
-        wait_rsp_timer->start();/*启动回应超时定时器*/
-    } else {
-        qWarning("串口是关闭的，无法发送数据.");
+    if (m_opened == false){
+        return;
     }
+
+    tare.timeout = RSP_TIMEOUT;
+
+    tare.level = level;
+    tare.code = REQ_CODE_TARE;
+
+    tare.size = 5;
+
+    tare.send[0] = 0x01;
+    tare.send[1] = 0x01;
+    tare.send[2] = (char)tare.level ;/*称号*/
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)tare.send,tare.size - 2);
+    tare.send[3] = (crc16 >> 8);
+    tare.send[4] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(tare);
+
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("tare queue size:%d.",m_req_queue->size());
 }
 
 
 /*校准*/
-void communication::on_calibration_event(int level,int calibration_weight)
+void communication::handle_calibration_req(int level,int calibration_weight)
 {
-    QByteArray calibration;
+    req_param calibration;
 
     uint16_t crc16;
 
-    req_code = 0x02;
-    req_param = calibration_weight;
-    req_level = level;
-    calibration.resize(7);
-
-    calibration[0] = 0x01;
-    calibration[1] = 0x02;
-    calibration[2] = (uint8_t)level;
-
-    calibration[3] = calibration_weight >> 8;
-    calibration[4] = calibration_weight & 0xFF;
-
-
-
-    crc16 = crc->calculate_crc((uint8_t *)calibration.data(),calibration.size() - 2);
-    calibration[5] = (crc16 >> 8);
-    calibration[6] = (crc16 & 0xFF);
-
-    if (serial_opened) {
-        serial->write(calibration.data(),calibration.size());
-        wait_rsp_timer->start();/*启动回应超时定时器*/
-    } else {
-        qWarning("串口是关闭的，无法发送数据.");
+    if (m_opened == false){
+        return;
     }
+
+    calibration.timeout = RSP_TIMEOUT;
+    calibration.level = level;
+    calibration.code = REQ_CODE_CALIBRATION;
+    calibration.value = calibration_weight;
+
+
+    calibration.size = 7;
+
+    calibration.send[0] = 0x01;
+    calibration.send[1] = calibration.code;
+    calibration.send[2] = (uint8_t)level;
+
+    calibration.send[3] = calibration_weight >> 8;
+    calibration.send[4] = calibration_weight & 0xFF;
+
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)calibration.send,calibration.size - 2);
+    calibration.send[5] = (crc16 >> 8);
+    calibration.send[6] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(calibration);
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("cal queue size:%d.",m_req_queue->size());
+}
+
+/*开锁*/
+void communication::handle_req_unlock()
+{
+    req_param unlock;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+    unlock.timeout = RSP_UNLOCK_TIMEOUT;
+
+    unlock.code = REQ_CODE_UNLOCK;
+
+
+    unlock.size = 4;
+
+    unlock.send[0] = 0x01;
+    unlock.send[1] = unlock.code;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)unlock.send,unlock.size - 2);
+    unlock.send[2] = (crc16 >> 8);
+    unlock.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(unlock);
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("unlock queue size:%d.",m_req_queue->size());
+}
+
+/*关锁*/
+void communication::handle_req_lock()
+{
+    req_param lock;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+
+    lock.timeout = RSP_LOCK_TIMEOUT;
+
+    lock.code = REQ_CODE_LOCK;
+
+
+    lock.size = 4;
+
+    lock.send[0] = 0x01;
+    lock.send[1] = lock.code;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)lock.send,lock.size - 2);
+    lock.send[2] = (crc16 >> 8);
+    lock.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(lock);
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("unlock queue size:%d.",m_req_queue->size());
+}
+
+/*查询门状态*/
+void communication::handle_query_door_status()
+{
+    req_param status;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+
+    status.code = REQ_CODE_QUERY_DOOR_STATUS;
+
+
+    status.size = 4;
+
+    status.send[0] = 0x01;
+    status.send[1] = status.code;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)status.send,status.size - 2);
+    status.send[2] = (crc16 >> 8);
+    status.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(status);
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("unlock queue size:%d.",m_req_queue->size());
 }
 
 
+/*查询锁状态*/
+void communication::handle_query_lock_status()
+{
+    req_param status;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+
+    status.code = REQ_CODE_QUERY_LOCK_STATUS;
 
 
+    status.size = 4;
+
+    status.send[0] = 0x01;
+    status.send[1] = status.code;
 
 
+    crc16 = m_crc->calculate_crc((uint8_t *)status.send,status.size - 2);
+    status.send[2] = (crc16 >> 8);
+    status.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(status);
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
+     qDebug("unlock queue size:%d.",m_req_queue->size());
+}

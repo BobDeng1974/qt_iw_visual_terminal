@@ -30,17 +30,13 @@ SOURCES += \
         mainwindow.cpp \
     communication.cpp \
     crc16.cpp \
-    query_weight.cpp \
-    tare.cpp \
-    calibration.cpp
+    req_param.cpp
 
 HEADERS += \
         mainwindow.h \
     communication.h \
     crc16.h \
-    query_weight.h \
-    tare.h \
-    calibration.h
+    req_param.h
 
 FORMS += \
         mainwindow.ui

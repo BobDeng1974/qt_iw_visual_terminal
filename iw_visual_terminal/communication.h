@@ -6,50 +6,87 @@
 #include <QTimer>
 #include <QMutex>
 #include "crc16.h"
-#include "query_weight.h"
-#include "tare.h"
-#include "calibration.h"
+#include "qqueue.h"
+#include "req_param.h"
+
 
 class communication : public QObject
 {
     Q_OBJECT
 public:
     explicit communication(QObject *parent = nullptr);
-    QSerialPort *serial;
-    query_weight *m_weight;
-    tare *m_tare;
-    calibration *m_calibration;
+    QSerialPort *m_serial;
+    enum {
+        FRAME_TIMEOUT = 10,
+        REQ_TIMEOUT = 20,
+        RSP_TIMEOUT = 50,
+        RSP_LOCK_TIMEOUT = 120,
+        RSP_UNLOCK_TIMEOUT = 120,
+        QUERY_WEIGHT_TIMEOUT = 20
 
+    };
 
+    enum {
+        REQ_CODE_TARE = 1,
+        REQ_CODE_CALIBRATION = 2,
+        REQ_CODE_QUERY_WEIGHT = 3,
+        REQ_CODE_QUERY_DOOR_STATUS = 0x11,
+        REQ_CODE_UNLOCK = 0x21,
+        REQ_CODE_LOCK = 0x22,
+        REQ_CODE_QUERY_LOCK_STATUS = 0x23
+    };
+    void handle_query_weight_req(void);
 
 public slots:
-    void on_open_serial_port_event(QString port_name,int baudrates,int data_bits,int parity);
-    void on_close_serial_port_event(QString port_name);
+    void handle_open_serial_port_req(QString port_name,int baudrates,int data_bits,int parity);
+    void handle_close_serial_port_req(QString port_name);
 
-    void on_loop_query_weight_event(void);
-    void on_tare_event(int level);
-    void on_calibration_event(int level,int calibration_weight);
-    void on_wait_rsp_timer_timeout(void);
-    void on_rsp_ready();
+    void handle_req_timeout_event(void);
+    void handle_rsp_timeout_event(void);
+    void handle_query_weight_timeout_event(void);
+    void handle_frame_timeout_event();
+
+    void handle_rsp_ready_event(void);
+
+    void handle_tare_req(int);
+    void handle_calibration_req(int,int);
+    void handle_req_unlock();
+    void handle_req_lock();
+    void handle_query_lock_status();
+    void handle_query_door_status();
 
 signals:
+
     void rsp_open_serial_port_result(int result);
     void rsp_close_serial_port_result(int result);
 
-    void rsp_loop_query_weight_result(int result,int level1,int level2,int level3,int level4);
+    void rsp_query_weight_result(int result,int level1,int level2,int level3,int level4);
     void rsp_tare_result(int level,int result);
     void rsp_calibration_result(int level,int calibration_weight,int result);
 
-private:
+    void rsp_unlock_result(int);
+    void rsp_lock_result(int);
+    void rsp_query_lock_status(QString status);
+    void rsp_query_door_status(QString status);
 
-    QTimer *wait_rsp_timer;
-    bool serial_is_busy;
-    QMutex *serial_mutex;
-    bool serial_opened;
-    crc16 *crc;
+
+private:
+    QQueue<req_param> *m_req_queue;
+    QTimer *m_req_timer;
+    QTimer *m_rsp_timer;
+    QTimer *m_period_query_weight_timer;
+    QTimer *m_frame_timer;
+
+
+    bool   m_opened;
+    crc16 *m_crc;
+    bool   m_busy;
+
     int req_level;
     int req_code;
-    int req_param;
+    int req_weight;
+    uint8_t rsp[100];
+    int rsp_size;
 
 };
 

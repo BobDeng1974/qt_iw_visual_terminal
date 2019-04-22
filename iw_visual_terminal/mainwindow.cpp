@@ -37,13 +37,14 @@ MainWindow::MainWindow(QWidget *parent) :
 
     /*添加校验类型*/
     ui->parity_list->addItem("无校验");
-    ui->parity_list->addItem("偶校验");
     ui->parity_list->addItem("奇校验");
+    ui->parity_list->addItem("偶校验");
     ui->parity_list->setCurrentIndex(0);
 
-
-    loop_weight_timer = new QTimer(this);
-    loop_weight_timer->setInterval(100);
+    ui->display_1->display("------");
+    ui->display_2->display("------");
+    ui->display_3->display("------");
+    ui->display_4->display("------");
 
     opened = false;
 
@@ -52,28 +53,31 @@ MainWindow::MainWindow(QWidget *parent) :
     comm = new communication(0);
 
     comm->moveToThread(comm_thread);
-    comm->serial->moveToThread(comm_thread);
+    comm->m_serial->moveToThread(comm_thread);
 
     comm_thread->start();
 
-    QObject::connect(loop_weight_timer,SIGNAL(timeout()),this,SLOT(on_loop_weight_timer_timeout()));
 
      /*-从UI到comm--*/
-    QObject::connect(this,SIGNAL(req_open_serial_port(QString ,int ,int ,int )),comm,SLOT(on_open_serial_port_event(QString ,int ,int ,int )));
-    QObject::connect(this,SIGNAL(req_close_serial_port(QString)),comm,SLOT(on_close_serial_port_event(QString)));
+    QObject::connect(this,SIGNAL(req_open_serial_port(QString ,int ,int ,int )),comm,SLOT(handle_open_serial_port_req(QString ,int ,int ,int )));
+    QObject::connect(this,SIGNAL(req_close_serial_port(QString)),comm,SLOT(handle_close_serial_port_req(QString)));
 
-    QObject::connect(this,SIGNAL(req_loop_weight(void)),comm->m_weight,SLOT(query_weight_event(void)));
-    QObject::connect(this,SIGNAL(req_tare(int)),comm->m_tare,SLOT(tare_event(int)));
-    QObject::connect(this,SIGNAL(req_calibration(int,int)),comm->m_calibration,SLOT(calibration_event(int,int)));
+    QObject::connect(this,SIGNAL(req_tare(int)),comm,SLOT(handle_tare_req(int)));
+    QObject::connect(this,SIGNAL(req_calibration(int,int)),comm,SLOT(handle_calibration_req(int,int)));
+
+    QObject::connect(this,SIGNAL(req_unlock()),comm,SLOT(handle_req_unlock()));
+    QObject::connect(this,SIGNAL(req_lock()),comm,SLOT(handle_req_lock()));
 
     /*-从comm到UI--*/
-    QObject::connect(comm,SIGNAL(rsp_open_serial_port_result(int )),this,SLOT(on_rsp_open_serial_port_result(int )));
-    QObject::connect(comm,SIGNAL(rsp_close_serial_port_result(int )),this,SLOT(on_rsp_close_serial_port_result(int )));
+    QObject::connect(comm,SIGNAL(rsp_open_serial_port_result(int )),this,SLOT(handle_open_serial_port_result(int )));
+    QObject::connect(comm,SIGNAL(rsp_close_serial_port_result(int )),this,SLOT(handle_close_serial_port_result(int )));
 
-    QObject::connect(comm,SIGNAL(rsp_loop_query_weight_result(int ,int ,int ,int ,int )),this,SLOT(on_rsp_loop_weight_result(int ,int ,int ,int ,int )));
-    QObject::connect(comm,SIGNAL(rsp_tare_result(int,int)),this,SLOT(on_rsp_tare_result(int,int)));
-    QObject::connect(comm,SIGNAL(rsp_calibration_result(int,int,int)),this,SLOT(on_rsp_calibration_result(int,int,int)));
+    QObject::connect(comm,SIGNAL(rsp_query_weight_result(int ,int ,int ,int ,int )),this,SLOT(handle_query_weight_result(int ,int ,int ,int ,int )));
+    QObject::connect(comm,SIGNAL(rsp_tare_result(int,int)),this,SLOT(handle_tare_result(int,int)));
+    QObject::connect(comm,SIGNAL(rsp_calibration_result(int,int,int)),this,SLOT(handle_calibration_result(int,int,int)));
 
+    QObject::connect(comm,SIGNAL(rsp_unlock_result(int)),this,SLOT(handle_unlock_result(int)));
+    QObject::connect(comm,SIGNAL(rsp_lock_result(int)),this,SLOT(handle_lock_result(int)));
 }
 
 MainWindow::~MainWindow()
@@ -82,15 +86,16 @@ MainWindow::~MainWindow()
 }
 
 /*串口打开操作结果*/
-void MainWindow::on_rsp_open_serial_port_result(int result)
+void MainWindow::handle_open_serial_port_result(int result)
 {
     if (result == 0) {
         opened = true;
         ui->open_button->setText("关闭");
         qDebug("串口打开成功！");
-        /*开启轮询净重定时器*/
-        loop_weight_timer->start();
-
+        ui->port_list->setEnabled(false);
+        ui->data_bits_list->setEnabled(false);
+        ui->baudrate_list->setEnabled(false);
+        ui->parity_list->setEnabled(false);
 
     } else {
         QMessageBox::warning(this,"错误",ui->port_list->currentText() + "打开失败！",QMessageBox::Ok);
@@ -98,30 +103,51 @@ void MainWindow::on_rsp_open_serial_port_result(int result)
 }
 
 /*串口关闭操作结果*/
-void MainWindow::on_rsp_close_serial_port_result(int result)
+void MainWindow::handle_close_serial_port_result(int result)
 {
     if (result == 0) {
         opened = false;
         ui->open_button->setText("打开");
-        loop_weight_timer->stop();
         qDebug("串口关闭成功！");
 
+        ui->display_1->display("------");
+        ui->display_2->display("------");
+        ui->display_3->display("------");
+        ui->display_4->display("------");
+
+        ui->port_list->setEnabled(true);
+        ui->data_bits_list->setEnabled(true);
+        ui->baudrate_list->setEnabled(true);
+        ui->parity_list->setEnabled(true);
     } else {
         QMessageBox::warning(this,"错误",ui->port_list->currentText() + "关闭失败！",QMessageBox::Ok);
     }
 }
 
-/*轮询净重超时处理*/
-void MainWindow::on_loop_weight_timer_timeout()
+/*开锁*/
+void MainWindow::handle_unlock_result(int result)
 {
-    on_rsp_loop_weight_result(-1,0,0,0,0);
-    /*发送轮询净重信号*/
-    loop_weight_timer->start();
+    if (result == 0) {
+       QMessageBox::information(this,"成功","开锁成功！",QMessageBox::Ok);
+    } else {
+       QMessageBox::warning(this,"错误","开锁失败！",QMessageBox::Ok);
+    }
+
 }
 
+/*关锁*/
+void MainWindow::handle_lock_result(int result)
+{
+    if (result == 0) {
+       QMessageBox::information(this,"成功","关锁成功！",QMessageBox::Ok);
+    } else {
+       QMessageBox::warning(this,"错误","关锁失败！",QMessageBox::Ok);
+    }
+
+}
 
 /*净重结果显示*/
-void MainWindow::on_rsp_loop_weight_result(int result,int weight1,int weight2,int weight3,int weight4)
+void MainWindow::handle_query_weight_result(int result,int weight1,int weight2,int weight3,int weight4)
 {
     /*成功读取*/
     if (result == 0) {
@@ -151,19 +177,17 @@ void MainWindow::on_rsp_loop_weight_result(int result,int weight1,int weight2,in
 
     } else {
 
-         ui->display_1->display(opened == true ? "err" :"------");
-         ui->display_2->display(opened == true ? "err" :"------");
-         ui->display_3->display(opened == true ? "err" :"------");
-         ui->display_4->display(opened == true ? "err" :"------");
-
+        ui->display_1->display("err");
+        ui->display_2->display("err");
+        ui->display_3->display("err");
+        ui->display_4->display("err");
     }
-    loop_weight_timer->start();
 }
 
 
 /*去皮结果显示*/
 
-void MainWindow::on_rsp_tare_result(int level,int result)
+void MainWindow::handle_tare_result(int level,int result)
 {
     if (result == 0) {
        QMessageBox::information(this,"成功","第" + QString::number( level)+ "层去皮成功！",QMessageBox::Ok);
@@ -175,7 +199,7 @@ void MainWindow::on_rsp_tare_result(int level,int result)
 
 
 /*校准结果显示*/
-void MainWindow::on_rsp_calibration_result(int level,int calibration_weight,int result)
+void MainWindow::handle_calibration_result(int level,int calibration_weight,int result)
 {
     if (result == 0) {
        QMessageBox::information(this,"成功","第" + QString::number( level)+ "层" + QString::number(calibration_weight) +"校准成功！",QMessageBox::Ok);
@@ -203,10 +227,6 @@ void MainWindow::on_open_button_clicked()
 /*第4层去皮*/
 void MainWindow::on_tare_button_4_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送去皮信号*/
     emit req_tare(4);
 
@@ -214,10 +234,6 @@ void MainWindow::on_tare_button_4_clicked()
 /*第3层去皮*/
 void MainWindow::on_tare_button_3_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送去皮信号*/
     emit req_tare(3);
 }
@@ -225,20 +241,12 @@ void MainWindow::on_tare_button_3_clicked()
 /*第2层去皮*/
 void MainWindow::on_tare_button_2_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送去皮信号*/
     emit req_tare(2);
 }
 /*第1层去皮*/
 void MainWindow::on_tare_button_1_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送去皮信号*/
     emit req_tare(1);
 }
@@ -247,10 +255,6 @@ void MainWindow::on_tare_button_1_clicked()
 /*第4层0点校准*/
 void MainWindow::on_calibration_zero_button_4_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(4,0);
 }
@@ -258,10 +262,6 @@ void MainWindow::on_calibration_zero_button_4_clicked()
 /*第3层0点校准*/
 void MainWindow::on_calibration_zero_button_3_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(3,0);
 }
@@ -269,10 +269,6 @@ void MainWindow::on_calibration_zero_button_3_clicked()
 /*第2层0点校准*/
 void MainWindow::on_calibration_zero_button_2_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(2,0);
 }
@@ -280,10 +276,6 @@ void MainWindow::on_calibration_zero_button_2_clicked()
 /*第1层0点校准*/
 void MainWindow::on_calibration_zero_button_1_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(1,0);
 }
@@ -291,10 +283,6 @@ void MainWindow::on_calibration_zero_button_1_clicked()
 /*第4层2000g校准*/
 void MainWindow::on_calibration_2000_button_4_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(4,2000);
 }
@@ -302,20 +290,12 @@ void MainWindow::on_calibration_2000_button_4_clicked()
 /*第3层2000g校准*/
 void MainWindow::on_calibration_2000_button_3_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(3,2000);
 }
 /*第2层2000g校准*/
 void MainWindow::on_calibration_2000_button_2_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(2,2000);
 }
@@ -323,10 +303,6 @@ void MainWindow::on_calibration_2000_button_2_clicked()
 /*第1层2000g校准*/
 void MainWindow::on_calibration_2000_button_1_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(1,2000);
 }
@@ -334,46 +310,31 @@ void MainWindow::on_calibration_2000_button_1_clicked()
 /*第4层5000g校准*/
 void MainWindow::on_calibration_5000_button_4_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(4,5000);
 }
 /*第3层5000g校准*/
 void MainWindow::on_calibration_5000_button_3_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(3,5000);
 }
 /*第2层5000g校准*/
 void MainWindow::on_calibration_5000_button_2_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(2,5000);
 }
 /*第1层5000g校准*/
 void MainWindow::on_calibration_5000_button_1_clicked()
 {
-    if (opened == false) {
-        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
-        return;
-    }
     /*发送校准信号*/
     emit req_calibration(1,5000);
 }
 
 void MainWindow::on_all_on_top_check_button_stateChanged(int arg1)
 {
+    (void)arg1;
     if (ui->all_on_top_check_button->isChecked()) {
         setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
     } else {
@@ -391,3 +352,13 @@ void MainWindow::on_all_on_top_check_button_stateChanged(int arg1)
 
 
 
+
+void MainWindow::on_open_lock_button_clicked()
+{
+    emit req_unlock();
+}
+
+void MainWindow::on_close_lock_button_clicked()
+{
+    emit req_lock();
+}
