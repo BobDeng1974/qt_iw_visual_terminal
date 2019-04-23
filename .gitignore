@@ -1,5 +1,3 @@
-/*
-!/iw_visual_terminal/
-!/.gitignore
-!/LICENSE
-!/README.md
+/build-iw_visual_terminal-Desktop_Qt_5_12_0_MinGW_64_bit-Release/*
+/iw_visual_terminal/iw_visual_terminal.pro.*
+/dll_lib
