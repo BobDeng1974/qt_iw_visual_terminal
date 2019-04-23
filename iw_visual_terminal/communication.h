@@ -17,12 +17,12 @@ public:
     explicit communication(QObject *parent = nullptr);
     QSerialPort *m_serial;
     enum {
-        FRAME_TIMEOUT = 10,
-        REQ_TIMEOUT = 20,
+        FRAME_TIMEOUT = 5,
+        REQ_TIMEOUT = 5,
         RSP_TIMEOUT = 50,
-        RSP_LOCK_TIMEOUT = 120,
-        RSP_UNLOCK_TIMEOUT = 120,
-        QUERY_WEIGHT_TIMEOUT = 20
+        RSP_LOCK_TIMEOUT = 1000,
+        RSP_UNLOCK_TIMEOUT = 1000,
+        PERIOD_TIMEOUT = 5
 
     };
 
@@ -33,7 +33,8 @@ public:
         REQ_CODE_QUERY_DOOR_STATUS = 0x11,
         REQ_CODE_UNLOCK = 0x21,
         REQ_CODE_LOCK = 0x22,
-        REQ_CODE_QUERY_LOCK_STATUS = 0x23
+        REQ_CODE_QUERY_LOCK_STATUS = 0x23,
+        REQ_CODE_QUERY_TEMPERATURE = 0x41
     };
     void handle_query_weight_req(void);
 
@@ -54,13 +55,14 @@ public slots:
     void handle_req_lock();
     void handle_query_lock_status();
     void handle_query_door_status();
+    void handle_query_temperature();
 
 signals:
 
     void rsp_open_serial_port_result(int result);
     void rsp_close_serial_port_result(int result);
 
-    void rsp_query_weight_result(int result,int level1,int level2,int level3,int level4);
+    void rsp_query_weight_result(int result,int level,int value);
     void rsp_tare_result(int level,int result);
     void rsp_calibration_result(int level,int calibration_weight,int result);
 
@@ -68,13 +70,13 @@ signals:
     void rsp_lock_result(int);
     void rsp_query_lock_status(QString status);
     void rsp_query_door_status(QString status);
-
+    void rsp_query_temperature(int);
 
 private:
     QQueue<req_param> *m_req_queue;
     QTimer *m_req_timer;
     QTimer *m_rsp_timer;
-    QTimer *m_period_query_weight_timer;
+    QTimer *m_period_timer;
     QTimer *m_frame_timer;
 
 

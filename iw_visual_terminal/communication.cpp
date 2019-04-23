@@ -14,8 +14,8 @@ communication::communication(QObject *parent) : QObject(parent)
 
     m_req_queue = new QQueue<req_param>();
 
-    m_period_query_weight_timer = new QTimer(this);
-    m_period_query_weight_timer->setInterval(QUERY_WEIGHT_TIMEOUT);
+    m_period_timer = new QTimer(this);
+    m_period_timer->setInterval(PERIOD_TIMEOUT);
 
     m_rsp_timer = new QTimer(this);
     m_rsp_timer->setInterval(RSP_TIMEOUT);
@@ -33,14 +33,25 @@ communication::communication(QObject *parent) : QObject(parent)
     QObject::connect(m_frame_timer,SIGNAL(timeout()),this,SLOT(handle_frame_timeout_event()));
     QObject::connect(m_rsp_timer,SIGNAL(timeout()),this,SLOT(handle_rsp_timeout_event()));
     QObject::connect(m_req_timer,SIGNAL(timeout()),this,SLOT(handle_req_timeout_event()));
-    QObject::connect(m_period_query_weight_timer,SIGNAL(timeout()),this,SLOT(handle_query_weight_timeout_event()));
+    QObject::connect(m_period_timer,SIGNAL(timeout()),this,SLOT(handle_query_weight_timeout_event()));
 }
 
 
 
 void communication::handle_query_weight_timeout_event()
 {
-    handle_query_weight_req();
+    if (m_req_queue->size() == 0) {
+        handle_query_weight_req();
+        handle_query_door_status();
+        handle_query_lock_status();
+        handle_query_temperature();
+    }
+
+    if (m_busy == false)
+    {
+        m_busy= true;
+        m_req_timer->start();
+    }
 }
 
 /*处理请求队列*/
@@ -49,11 +60,11 @@ void communication::handle_req_timeout_event()
     req_param req;
 
     m_req_timer->stop();
-    m_period_query_weight_timer->stop();
 
-    qDebug("出队");
     if (!m_req_queue->isEmpty()) {
         req = m_req_queue->dequeue();
+        qDebug("dequeue......");
+
         req_level = req.level;
         req_code = req.code;
         req_weight = req.value;
@@ -82,10 +93,12 @@ void communication::handle_rsp_timeout_event()
 /*接受完成一帧数据*/
 void communication::handle_frame_timeout_event()
 {
-    int rc = -20;
+    int rc = -1;
     uint16_t crc_recv,crc_calculate;
 
-    int weight1 = 0,weight2 = 0,weight3 = 0,weight4 = 0;
+    int weight;
+    int temperature = 0x7f;
+
     QString status("错误");
 
     m_rsp_timer->stop();/*停止定时器*/
@@ -138,21 +151,16 @@ void communication::handle_frame_timeout_event()
         }
     break;
      case REQ_CODE_QUERY_WEIGHT:/*净重*/
-        if (rsp_size == 44 ) {
-            weight1 = rsp[2] * 256 + rsp[3];
-            weight2 = rsp[4] * 256 + rsp[5];
-            weight3 = rsp[6] * 256 + rsp[7];
-            weight4 = rsp[8] * 256 + rsp[9];
+        if (rsp_size == 6 ) {
+            weight = rsp[2] * 256 + rsp[3];
             rc = 0;
-
         } else {
             rc = -20;/*协议错误*/
         }
     break;
     case REQ_CODE_QUERY_DOOR_STATUS:/*门状态*/
     case REQ_CODE_QUERY_LOCK_STATUS:/*锁状态*/
-        if (rsp_size == 5 ) {
-             rc = 0;
+         if (rsp_size == 5 ) {
             if (rsp[2] == 0x01) {
                  status = "打开";
             } else {
@@ -161,6 +169,12 @@ void communication::handle_frame_timeout_event()
 
         }
     break;
+    case REQ_CODE_QUERY_TEMPERATURE:/*温度*/
+         if (rsp_size == 5) {
+             temperature = rsp[2];
+          }
+    break;
+
     default:
         qWarning("协议错误.");
 
@@ -174,7 +188,7 @@ err_exit:
     } else if (req_code == REQ_CODE_CALIBRATION) {
         emit rsp_calibration_result(req_level,req_weight,rc);
     } else if (req_code == REQ_CODE_QUERY_WEIGHT) {
-        emit rsp_query_weight_result(rc,weight1,weight2,weight3,weight4);
+        emit rsp_query_weight_result(rc,req_level,weight);
     } else if (req_code == REQ_CODE_UNLOCK) {
         emit rsp_unlock_result(rc);
     }else if (req_code == REQ_CODE_LOCK) {
@@ -182,11 +196,12 @@ err_exit:
     }else if (req_code == REQ_CODE_QUERY_DOOR_STATUS) {
         emit rsp_query_door_status(status);
     }else if(req_code == REQ_CODE_QUERY_LOCK_STATUS) {
-            emit rsp_query_lock_status(status);
-        }
-
-    qDebug("start query weight timer.");
-    m_period_query_weight_timer->start();
+        emit rsp_query_lock_status(status);
+    } else if (req_code == REQ_CODE_QUERY_TEMPERATURE) {
+        emit rsp_query_temperature(temperature);
+    }
+    qDebug("start period timer.");
+    m_period_timer->start();
     rsp_size = 0;
 }
 
@@ -239,7 +254,7 @@ void communication::handle_open_serial_port_req(QString port_name,int baudrates,
         m_opened = true;
 
         m_req_timer->start();/*开始请求*/
-        m_period_query_weight_timer->start();
+        m_period_timer->start();
 
         emit rsp_open_serial_port_result(0);/*发送成功信号*/
     } else {
@@ -258,7 +273,7 @@ void communication::handle_close_serial_port_req(QString port_name)
 
     m_serial->close();
 
-    m_period_query_weight_timer->stop();
+    m_period_timer->stop();
     m_req_timer->stop();
     m_rsp_timer->stop();
     m_frame_timer->stop();
@@ -287,25 +302,20 @@ void communication::handle_query_weight_req()
     query_weight.size = 5;
 
     query_weight.send[0] = 0x01;
-    query_weight.send[1] = 0x03;
-    query_weight.send[2] = 0x00;
+    query_weight.send[1] = query_weight.code;
 
+    for (int i = 1;i < 5;i ++) {
+        query_weight.level = i;
+        query_weight.send[2] = i;
 
-    crc16 = m_crc->calculate_crc((uint8_t *)query_weight.send,query_weight.size - 2);
-    query_weight.send[3] = (crc16 >> 8);
-    query_weight.send[4] = (crc16 & 0xFF);
-
-    if (m_req_queue->size() == 0) {
+        crc16 = m_crc->calculate_crc((uint8_t *)query_weight.send,query_weight.size - 2);
+        query_weight.send[3] = (crc16 >> 8);
+        query_weight.send[4] = (crc16 & 0xFF);
         m_req_queue->enqueue(query_weight);
+        qDebug("enqueue query addr:%d weight req. queue size:%d.",i,m_req_queue->size());
     }
-        if (m_busy == false)
-        {
-            m_busy = true;
-            m_req_timer->start();
-        }
 
 
-    qDebug("weight queue size:%d.",m_req_queue->size());
 }
 
 
@@ -321,10 +331,8 @@ void communication::handle_tare_req(int level)
     }
 
     tare.timeout = RSP_TIMEOUT;
-
     tare.level = level;
     tare.code = REQ_CODE_TARE;
-
     tare.size = 5;
 
     tare.send[0] = 0x01;
@@ -434,9 +442,7 @@ void communication::handle_req_lock()
     }
 
     lock.timeout = RSP_LOCK_TIMEOUT;
-
     lock.code = REQ_CODE_LOCK;
-
 
     lock.size = 4;
 
@@ -468,9 +474,8 @@ void communication::handle_query_door_status()
         return;
     }
 
+    status.timeout = RSP_TIMEOUT;
     status.code = REQ_CODE_QUERY_DOOR_STATUS;
-
-
     status.size = 4;
 
     status.send[0] = 0x01;
@@ -482,12 +487,8 @@ void communication::handle_query_door_status()
     status.send[3] = (crc16 & 0xFF);
 
     m_req_queue->enqueue(status);
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
-     qDebug("unlock queue size:%d.",m_req_queue->size());
+
+    qDebug("enqueue query door status req.queue size:%d.",m_req_queue->size());
 }
 
 
@@ -502,6 +503,7 @@ void communication::handle_query_lock_status()
         return;
     }
 
+    status.timeout = RSP_TIMEOUT;
     status.code = REQ_CODE_QUERY_LOCK_STATUS;
 
 
@@ -516,10 +518,34 @@ void communication::handle_query_lock_status()
     status.send[3] = (crc16 & 0xFF);
 
     m_req_queue->enqueue(status);
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
+    qDebug("enqueue query lock status req. queue size:%d.",m_req_queue->size());
+}
+
+/*查询温度*/
+void communication::handle_query_temperature()
+{
+    req_param status;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
     }
-     qDebug("unlock queue size:%d.",m_req_queue->size());
+
+    status.timeout = RSP_TIMEOUT;
+    status.code = REQ_CODE_QUERY_TEMPERATURE;
+
+
+    status.size = 4;
+
+    status.send[0] = 0x01;
+    status.send[1] = status.code;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)status.send,status.size - 2);
+    status.send[2] = (crc16 >> 8);
+    status.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(status);
+    qDebug("enqueue query temperature req. queue size:%d.",m_req_queue->size());
 }
