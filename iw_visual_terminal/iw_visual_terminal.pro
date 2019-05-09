@@ -3,6 +3,12 @@
 # Project created by QtCreator 2019-04-19T23:52:18
 #
 #-------------------------------------------------
+VERSION = 1.0.0
+
+QMAKE_TARGET_PRODUCT = iw visual terminal
+QMAKE_TARGET_COMPANY = CH-ML
+QMAKE_TARGET_DESCRIPTION = iw visual terminal
+QMAKE_TARGET_COPYRIGHT = Copyright@2019
 
 QT       += core gui
 QT       += serialport
@@ -26,6 +32,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 CONFIG += c++11
 
 SOURCES += \
+    dialog_about.cpp \
         main.cpp \
         mainwindow.cpp \
     communication.cpp \
@@ -33,12 +40,14 @@ SOURCES += \
     req_param.cpp
 
 HEADERS += \
+    dialog_about.h \
         mainwindow.h \
     communication.h \
     crc16.h \
     req_param.h
 
 FORMS += \
+        dialog_about.ui \
         mainwindow.ui
 
 # Default rules for deployment.

@@ -17,13 +17,11 @@ public:
     explicit communication(QObject *parent = nullptr);
     QSerialPort *m_serial;
     enum {
-        FRAME_TIMEOUT = 5,
         REQ_TIMEOUT = 5,
+        CONTINUE_TIMEOUT = 10,
         RSP_TIMEOUT = 50,
         RSP_LOCK_TIMEOUT = 1000,
         RSP_UNLOCK_TIMEOUT = 1000,
-        PERIOD_TIMEOUT = 5
-
     };
 
     enum {
@@ -36,6 +34,10 @@ public:
         REQ_CODE_QUERY_LOCK_STATUS = 0x23,
         REQ_CODE_QUERY_TEMPERATURE = 0x41
     };
+
+    enum {
+        QUERY_WEIGHT_DUCY_MULTIPLE = 4
+    };
     void handle_query_weight_req(void);
 
 public slots:
@@ -43,11 +45,10 @@ public slots:
     void handle_close_serial_port_req(QString port_name);
 
     void handle_req_timeout_event(void);
-    void handle_rsp_timeout_event(void);
-    void handle_query_weight_timeout_event(void);
-    void handle_frame_timeout_event();
 
-    void handle_rsp_ready_event(void);
+    void insert_period_query_req();
+    void wait_rsp(int);
+    void handle_rsp(void);
 
     void handle_tare_req(int);
     void handle_calibration_req(int,int);
@@ -62,7 +63,7 @@ signals:
     void rsp_open_serial_port_result(int result);
     void rsp_close_serial_port_result(int result);
 
-    void rsp_query_weight_result(int result,int level,int value);
+    void rsp_query_weight_result(int result,int level,int,int,int,int);
     void rsp_tare_result(int level,int result);
     void rsp_calibration_result(int level,int calibration_weight,int result);
 
@@ -75,9 +76,6 @@ signals:
 private:
     QQueue<req_param> *m_req_queue;
     QTimer *m_req_timer;
-    QTimer *m_rsp_timer;
-    QTimer *m_period_timer;
-    QTimer *m_frame_timer;
 
 
     bool   m_opened;
@@ -89,6 +87,7 @@ private:
     int req_weight;
     uint8_t rsp[100];
     int rsp_size;
+    int duty_multiple;
 
 };
 

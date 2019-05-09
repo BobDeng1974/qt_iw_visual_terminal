@@ -36,7 +36,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>创新奇智冷柜生产调试终端</string>
+   <string>创新奇智冷柜生产调试终端v1.0.0</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QLCDNumber" name="display_4">
@@ -776,19 +776,25 @@
      <height>23</height>
     </rect>
    </property>
-   <widget class="QMenu" name="menu">
-    <property name="title">
-     <string>使用说明</string>
-    </property>
-   </widget>
    <widget class="QMenu" name="menu_2">
     <property name="title">
-     <string>关于</string>
+     <string>帮助</string>
     </property>
+    <addaction name="actionabout"/>
+    <addaction name="actionmanual"/>
    </widget>
-   <addaction name="menu"/>
    <addaction name="menu_2"/>
   </widget>
+  <action name="actionabout">
+   <property name="text">
+    <string>关于</string>
+   </property>
+  </action>
+  <action name="actionmanual">
+   <property name="text">
+    <string>使用说明</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources/>

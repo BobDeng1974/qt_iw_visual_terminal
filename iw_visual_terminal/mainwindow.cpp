@@ -3,6 +3,7 @@
 #include "qthread.h"
 #include "qmessagebox.h"
 #include "qdebug.h"
+#include "dialog_about.h"
 #include "communication.h"
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -77,7 +78,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(comm,SIGNAL(rsp_open_serial_port_result(int )),this,SLOT(handle_open_serial_port_result(int )));
     QObject::connect(comm,SIGNAL(rsp_close_serial_port_result(int )),this,SLOT(handle_close_serial_port_result(int )));
 
-    QObject::connect(comm,SIGNAL(rsp_query_weight_result(int ,int ,int)),this,SLOT(handle_query_weight_result(int ,int ,int )));
+    QObject::connect(comm,SIGNAL(rsp_query_weight_result(int ,int ,int,int,int,int)),this,SLOT(handle_query_weight_result(int ,int,int,int,int ,int )));
     QObject::connect(comm,SIGNAL(rsp_tare_result(int,int)),this,SLOT(handle_tare_result(int,int)));
     QObject::connect(comm,SIGNAL(rsp_calibration_result(int,int,int)),this,SLOT(handle_calibration_result(int,int,int)));
 
@@ -161,38 +162,37 @@ void MainWindow::handle_lock_result(int result)
 }
 
 /*净重结果显示*/
-void MainWindow::handle_query_weight_result(int result,int level,int weight)
+void MainWindow::handle_query_weight_result(int result,int level,int weight1,int weight2,int weight3,int weight4)
 {
     /*成功读取*/
-    if (level == 1) {
-        if (result == 0 && (int16_t)weight != -1) {
-            ui->display_1->display((int16_t)weight);
+    if (level == 0 && result == 0) {
+        if((int16_t)weight1 != -1) {
+            ui->display_1->display((int16_t)weight1);
         } else {
             ui->display_1->display("err");
         }
-    }
-
-    if (level == 2) {
-        if (result == 0 && (int16_t)weight != -1) {
-            ui->display_2->display((int16_t)weight);
+        if((int16_t)weight2 != -1) {
+            ui->display_2->display((int16_t)weight2);
         } else {
             ui->display_2->display("err");
         }
-    }
-    if (level == 3) {
-        if (result == 0 && (int16_t)weight != -1) {
-            ui->display_3->display((int16_t)weight);
+        if((int16_t)weight3 != -1) {
+            ui->display_3->display((int16_t)weight3);
         } else {
             ui->display_3->display("err");
         }
-    }
-    if (level == 4) {
-        if (result == 0 && (int16_t)weight != -1) {
-            ui->display_4->display((int16_t)weight);
+        if((int16_t)weight4 != -1) {
+            ui->display_4->display((int16_t)weight4);
         } else {
             ui->display_4->display("err");
         }
+    } else {
+        ui->display_1->display("err");
+        ui->display_2->display("err");
+        ui->display_3->display("err");
+        ui->display_4->display("err");
     }
+
 
 }
 
@@ -460,4 +460,13 @@ void MainWindow::on_close_lock_button_clicked()
         return;
     }
     emit req_lock();
+}
+
+
+
+void MainWindow::on_actionabout_triggered()
+{
+    Dialog_about about(this);
+    about.setWindowTitle("关于");
+    about.exec();
 }

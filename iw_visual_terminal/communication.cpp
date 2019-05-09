@@ -2,56 +2,43 @@
 #include "communication.h"
 #include "QtSerialPort/qserialport.h"
 #include "qthread.h"
-#include "qmutex.h"
+#include "QTime"
 
 communication::communication(QObject *parent) : QObject(parent)
 {
     m_opened = false;
     m_busy = false;
     rsp_size = 0;
-
+    duty_multiple = 0;
     m_serial = new QSerialPort(parent);
-
     m_req_queue = new QQueue<req_param>();
-
-    m_period_timer = new QTimer(this);
-    m_period_timer->setInterval(PERIOD_TIMEOUT);
-
-    m_rsp_timer = new QTimer(this);
-    m_rsp_timer->setInterval(RSP_TIMEOUT);
 
     m_req_timer = new QTimer(this);
     m_req_timer->setInterval(REQ_TIMEOUT);
 
-    m_frame_timer = new QTimer(this);
-    m_frame_timer->setInterval(FRAME_TIMEOUT);
-
     m_crc = new crc16();
 
-    QObject::connect(m_serial,SIGNAL(readyRead()),this,SLOT(handle_rsp_ready_event()));
 
-    QObject::connect(m_frame_timer,SIGNAL(timeout()),this,SLOT(handle_frame_timeout_event()));
-    QObject::connect(m_rsp_timer,SIGNAL(timeout()),this,SLOT(handle_rsp_timeout_event()));
     QObject::connect(m_req_timer,SIGNAL(timeout()),this,SLOT(handle_req_timeout_event()));
-    QObject::connect(m_period_timer,SIGNAL(timeout()),this,SLOT(handle_query_weight_timeout_event()));
+
 }
 
 
-
-void communication::handle_query_weight_timeout_event()
+/*插入周期轮询请求*/
+void communication::insert_period_query_req()
 {
-    if (m_req_queue->size() == 0) {
-        handle_query_weight_req();
+
+    handle_query_weight_req();
+
+    /*主要轮询重量 兼顾其他*/
+    duty_multiple++;
+    if (duty_multiple >= QUERY_WEIGHT_DUCY_MULTIPLE) {
         handle_query_door_status();
         handle_query_lock_status();
         handle_query_temperature();
+        duty_multiple  = 0;
     }
 
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
 }
 
 /*处理请求队列*/
@@ -59,50 +46,74 @@ void communication::handle_req_timeout_event()
 {
     req_param req;
 
+    if (!m_opened) {
+        qWarning("串口是关闭的，无法发送数据.");
+    }
     m_req_timer->stop();
 
-    if (!m_req_queue->isEmpty()) {
-        req = m_req_queue->dequeue();
-        qDebug("dequeue......");
-
-        req_level = req.level;
-        req_code = req.code;
-        req_weight = req.value;
-
-        if (m_opened) {
-            m_serial->write(req.send,req.size);
-            qDebug("start rsp timer.");
-            m_rsp_timer->start(req.timeout);
-
-         } else {
-             qWarning("串口是关闭的，无法发送数据.");
-             handle_rsp_ready_event();
-         }
-
+    /*没有请求 就插入周期请求*/
+    if (m_req_queue->isEmpty()) {
+        insert_period_query_req();
     }
 
+    /*关掉定时器并处理请求*/
+    m_req_timer->stop();
+
+    req = m_req_queue->dequeue();
+    qDebug("process a req...");
+
+    req_level = req.level;
+    req_code = req.code;
+    req_weight = req.value;
+
+    m_serial->write(req.send,req.size);
+
+    wait_rsp(req.timeout);
+    handle_rsp();
 }
 
-/*接收超时*/
-void communication::handle_rsp_timeout_event()
+/*等待回应*/
+void communication::wait_rsp(int timeout)
 {
+    qint64 time;
+
+    time = QDateTime::currentMSecsSinceEpoch();
+
     rsp_size = 0;
-    handle_frame_timeout_event();
+    QByteArray rsp_array;
+
+    qDebug("wait start time:%d",time);
+
+    /*循环读取直到超时*/
+    while ( m_serial->waitForReadyRead(timeout)) {
+
+        timeout = CONTINUE_TIMEOUT;
+        rsp_array = m_serial->readAll();
+        if (rsp_array.size() + rsp_size >= 100) {
+            qDebug("rsp size overflow.");
+            rsp_size = 0;
+        } else {
+            memcpy(&rsp[rsp_size],(uint8_t*)rsp_array.data(),rsp_array.size());
+            rsp_size += rsp_array.size();
+            rsp_array.clear();
+        }
+    }
+
+    time = QDateTime::currentMSecsSinceEpoch();
+    qDebug("wait end time:%d",time);
+
 }
 
-/*接受完成一帧数据*/
-void communication::handle_frame_timeout_event()
+/*处理回应*/
+void communication::handle_rsp()
 {
     int rc = -1;
     uint16_t crc_recv,crc_calculate;
 
-    int weight;
+    int weight1,weight2,weight3,weight4;
     int temperature = 0x7f;
 
     QString status("错误");
-
-    m_rsp_timer->stop();/*停止定时器*/
-    m_frame_timer->stop();
 
     m_busy = false;
 
@@ -151,8 +162,11 @@ void communication::handle_frame_timeout_event()
         }
     break;
      case REQ_CODE_QUERY_WEIGHT:/*净重*/
-        if (rsp_size == 6 ) {
-            weight = rsp[2] * 256 + rsp[3];
+        if (rsp_size == 44 ) {
+            weight1 = rsp[2] * 256 + rsp[3];
+            weight2 = rsp[4] * 256 + rsp[5];
+            weight3 = rsp[6] * 256 + rsp[7];
+            weight4 = rsp[8] * 256 + rsp[9];
             rc = 0;
         } else {
             rc = -20;/*协议错误*/
@@ -188,7 +202,7 @@ err_exit:
     } else if (req_code == REQ_CODE_CALIBRATION) {
         emit rsp_calibration_result(req_level,req_weight,rc);
     } else if (req_code == REQ_CODE_QUERY_WEIGHT) {
-        emit rsp_query_weight_result(rc,req_level,weight);
+        emit rsp_query_weight_result(rc,req_level,weight1,weight2,weight3,weight4);
     } else if (req_code == REQ_CODE_UNLOCK) {
         emit rsp_unlock_result(rc);
     }else if (req_code == REQ_CODE_LOCK) {
@@ -200,28 +214,12 @@ err_exit:
     } else if (req_code == REQ_CODE_QUERY_TEMPERATURE) {
         emit rsp_query_temperature(temperature);
     }
-    qDebug("start period timer.");
-    m_period_timer->start();
-    rsp_size = 0;
+
+    qDebug("rsp result--> code:%d rc:%d",req_code,rc);
+    qDebug("restart req timer.");
+    m_req_timer->start();
 }
 
-/*读到数据*/
-void communication::handle_rsp_ready_event()
-{
-
-    QByteArray rsp_array;
-
-    rsp_array = m_serial->readAll();
-
-    if (rsp_array.size() + rsp_size >= 100) {
-        rsp_size = 0;
-    } else {
-        memcpy(&rsp[rsp_size],(uint8_t*)rsp_array.data(), rsp_array.size());
-        rsp_size += rsp_array.size();
-    }
-
-    m_frame_timer->start();
-}
 
 
 
@@ -254,7 +252,6 @@ void communication::handle_open_serial_port_req(QString port_name,int baudrates,
         m_opened = true;
 
         m_req_timer->start();/*开始请求*/
-        m_period_timer->start();
 
         emit rsp_open_serial_port_result(0);/*发送成功信号*/
     } else {
@@ -270,14 +267,9 @@ void communication::handle_close_serial_port_req(QString port_name)
     (void) port_name;
 
     m_serial->flush();
-
     m_serial->close();
 
-    m_period_timer->stop();
     m_req_timer->stop();
-    m_rsp_timer->stop();
-    m_frame_timer->stop();
-
     m_opened = false;
 
     emit rsp_close_serial_port_result(0);/*发送关闭串口成功信号*/
@@ -304,17 +296,15 @@ void communication::handle_query_weight_req()
     query_weight.send[0] = 0x01;
     query_weight.send[1] = query_weight.code;
 
-    for (int i = 1;i < 5;i ++) {
-        query_weight.level = i;
-        query_weight.send[2] = i;
+    query_weight.level = 0;
+    query_weight.send[2] = query_weight.level;
 
-        crc16 = m_crc->calculate_crc((uint8_t *)query_weight.send,query_weight.size - 2);
-        query_weight.send[3] = (crc16 >> 8);
-        query_weight.send[4] = (crc16 & 0xFF);
-        m_req_queue->enqueue(query_weight);
-        qDebug("enqueue query addr:%d weight req. queue size:%d.",i,m_req_queue->size());
-    }
+    crc16 = m_crc->calculate_crc((uint8_t *)query_weight.send,query_weight.size - 2);
+    query_weight.send[3] = (crc16 >> 8);
+    query_weight.send[4] = (crc16 & 0xFF);
+    m_req_queue->enqueue(query_weight);
 
+    qDebug("enqueue query weight req. queue size:%d.",m_req_queue->size());
 
 }
 
@@ -346,12 +336,7 @@ void communication::handle_tare_req(int level)
 
     m_req_queue->enqueue(tare);
 
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
-     qDebug("tare queue size:%d.",m_req_queue->size());
+    qDebug("tare queue size:%d.",m_req_queue->size());
 }
 
 
@@ -388,12 +373,8 @@ void communication::handle_calibration_req(int level,int calibration_weight)
     calibration.send[6] = (crc16 & 0xFF);
 
     m_req_queue->enqueue(calibration);
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
-     qDebug("cal queue size:%d.",m_req_queue->size());
+
+    qDebug("cal queue size:%d.",m_req_queue->size());
 }
 
 /*开锁*/
@@ -422,12 +403,8 @@ void communication::handle_req_unlock()
     unlock.send[3] = (crc16 & 0xFF);
 
     m_req_queue->enqueue(unlock);
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
-     qDebug("unlock queue size:%d.",m_req_queue->size());
+
+    qDebug("unlock queue size:%d.",m_req_queue->size());
 }
 
 /*关锁*/
@@ -455,12 +432,8 @@ void communication::handle_req_lock()
     lock.send[3] = (crc16 & 0xFF);
 
     m_req_queue->enqueue(lock);
-    if (m_busy == false)
-    {
-        m_busy= true;
-        m_req_timer->start();
-    }
-     qDebug("unlock queue size:%d.",m_req_queue->size());
+
+    qDebug("unlock queue size:%d.",m_req_queue->size());
 }
 
 /*查询门状态*/

@@ -21,7 +21,7 @@ public slots:
     void handle_open_serial_port_result(int result);
     void handle_close_serial_port_result(int result);
 
-    void handle_query_weight_result(int result,int level,int weight);
+    void handle_query_weight_result(int result,int level,int ,int,int,int);
     void handle_tare_result(int,int);
     void handle_calibration_result(int,int,int);
 
@@ -82,6 +82,8 @@ private slots:
     void handle_rsp_query_door_status(QString status);
     void handle_rsp_query_lock_status(QString status);
     void handle_rsp_query_temperature(int);
+
+    void on_actionabout_triggered();
 
 private:
     Ui::MainWindow *ui;
