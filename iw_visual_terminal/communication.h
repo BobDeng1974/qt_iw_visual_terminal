@@ -19,7 +19,13 @@ public:
     enum {
         REQ_TIMEOUT = 5,
         CONTINUE_TIMEOUT = 10,
-        RSP_TIMEOUT = 50,
+        RSP_WEIGHT_TIMEOUT = 50,
+        RSP_DOOR_STATUS_TIMEOUT = 50,
+        RSP_LOCK_STATUS_TIMEOUT = 50,
+        RSP_TEMPERATURE_TIMEOUT = 50,
+        RSP_SET_TEMPERATURE_TIMEOUT = 300,
+        RSP_CALIBRATION_TIMEOUT = 300,
+        RSP_REMOVE_TARE_TIMEOUT = 300,
         RSP_LOCK_TIMEOUT = 1000,
         RSP_UNLOCK_TIMEOUT = 1000,
     };
@@ -32,7 +38,8 @@ public:
         REQ_CODE_UNLOCK = 0x21,
         REQ_CODE_LOCK = 0x22,
         REQ_CODE_QUERY_LOCK_STATUS = 0x23,
-        REQ_CODE_QUERY_TEMPERATURE = 0x41
+        REQ_CODE_QUERY_TEMPERATURE = 0x41,
+        REQ_CODE_SET_TEMPERATURE = 0x0A
     };
 
     enum {
@@ -57,6 +64,7 @@ public slots:
     void handle_query_lock_status();
     void handle_query_door_status();
     void handle_query_temperature();
+    void handle_set_temperature(int);
 
 signals:
 
@@ -66,6 +74,7 @@ signals:
     void rsp_query_weight_result(int result,int level,int,int,int,int);
     void rsp_tare_result(int level,int result);
     void rsp_calibration_result(int level,int calibration_weight,int result);
+    void rsp_set_temperature_result(int rc);
 
     void rsp_unlock_result(int);
     void rsp_lock_result(int);

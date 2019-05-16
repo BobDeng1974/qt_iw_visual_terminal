@@ -150,6 +150,7 @@ void communication::handle_rsp()
     case REQ_CODE_CALIBRATION:/*校准*/
     case REQ_CODE_UNLOCK:/*开锁*/
     case REQ_CODE_LOCK:/*关锁*/
+    case REQ_CODE_SET_TEMPERATURE:/*设置温度*/
         if (rsp_size == 5 ) {
             if (rsp[2] == 0x01) { /*成功*/
                 rc = 0;
@@ -213,6 +214,8 @@ err_exit:
         emit rsp_query_lock_status(status);
     } else if (req_code == REQ_CODE_QUERY_TEMPERATURE) {
         emit rsp_query_temperature(temperature);
+    } else if (req_code == REQ_CODE_SET_TEMPERATURE ) {
+        rsp_set_temperature_result(rc);
     }
 
     qDebug("rsp result--> code:%d rc:%d",req_code,rc);
@@ -287,7 +290,7 @@ void communication::handle_query_weight_req()
         return;
     }
 
-    query_weight.timeout = RSP_TIMEOUT;
+    query_weight.timeout = RSP_WEIGHT_TIMEOUT;
 
     query_weight.code = REQ_CODE_QUERY_WEIGHT;
 
@@ -320,7 +323,7 @@ void communication::handle_tare_req(int level)
         return;
     }
 
-    tare.timeout = RSP_TIMEOUT;
+    tare.timeout = RSP_REMOVE_TARE_TIMEOUT;
     tare.level = level;
     tare.code = REQ_CODE_TARE;
     tare.size = 5;
@@ -351,7 +354,7 @@ void communication::handle_calibration_req(int level,int calibration_weight)
         return;
     }
 
-    calibration.timeout = RSP_TIMEOUT;
+    calibration.timeout = RSP_CALIBRATION_TIMEOUT;
     calibration.level = level;
     calibration.code = REQ_CODE_CALIBRATION;
     calibration.value = calibration_weight;
@@ -447,7 +450,7 @@ void communication::handle_query_door_status()
         return;
     }
 
-    status.timeout = RSP_TIMEOUT;
+    status.timeout = RSP_DOOR_STATUS_TIMEOUT;
     status.code = REQ_CODE_QUERY_DOOR_STATUS;
     status.size = 4;
 
@@ -476,7 +479,7 @@ void communication::handle_query_lock_status()
         return;
     }
 
-    status.timeout = RSP_TIMEOUT;
+    status.timeout = RSP_LOCK_STATUS_TIMEOUT;
     status.code = REQ_CODE_QUERY_LOCK_STATUS;
 
 
@@ -505,7 +508,7 @@ void communication::handle_query_temperature()
         return;
     }
 
-    status.timeout = RSP_TIMEOUT;
+    status.timeout = RSP_TEMPERATURE_TIMEOUT;
     status.code = REQ_CODE_QUERY_TEMPERATURE;
 
 
@@ -522,3 +525,33 @@ void communication::handle_query_temperature()
     m_req_queue->enqueue(status);
     qDebug("enqueue query temperature req. queue size:%d.",m_req_queue->size());
 }
+
+/*设置温度*/
+void communication::handle_set_temperature(int temperature)
+{
+    req_param status;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+
+    status.timeout = RSP_SET_TEMPERATURE_TIMEOUT;
+    status.code = REQ_CODE_SET_TEMPERATURE;
+
+
+    status.size = 5;
+
+    status.send[0] = 0x01;
+    status.send[1] = status.code;
+    status.send[2] = temperature;
+
+    crc16 = m_crc->calculate_crc((uint8_t *)status.send,status.size - 2);
+    status.send[3] = (crc16 >> 8);
+    status.send[4] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(status);
+    qDebug("enqueue set temperature req. queue size:%d.",m_req_queue->size());
+}
+

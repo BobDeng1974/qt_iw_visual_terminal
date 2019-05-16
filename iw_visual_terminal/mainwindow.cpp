@@ -52,6 +52,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->display_3->display("------");
     ui->display_4->display("------");
 
+    QRegExp regExp("[1-9]{0,2}");
+    ui->set_temperature_edit->setValidator(new QRegExpValidator(regExp, this));
+    ui->set_temperature_edit->setText(QString::number(6));
+
     opened = false;
 
     QThread *comm_thread = new QThread(0);
@@ -74,6 +78,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(this,SIGNAL(req_unlock()),comm,SLOT(handle_req_unlock()));
     QObject::connect(this,SIGNAL(req_lock()),comm,SLOT(handle_req_lock()));
 
+    QObject::connect(this,SIGNAL(req_set_temperature(int)),comm,SLOT(handle_set_temperature(int)));
+
+
+
     /*-从comm到UI--*/
     QObject::connect(comm,SIGNAL(rsp_open_serial_port_result(int )),this,SLOT(handle_open_serial_port_result(int )));
     QObject::connect(comm,SIGNAL(rsp_close_serial_port_result(int )),this,SLOT(handle_close_serial_port_result(int )));
@@ -81,6 +89,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(comm,SIGNAL(rsp_query_weight_result(int ,int ,int,int,int,int)),this,SLOT(handle_query_weight_result(int ,int,int,int,int ,int )));
     QObject::connect(comm,SIGNAL(rsp_tare_result(int,int)),this,SLOT(handle_tare_result(int,int)));
     QObject::connect(comm,SIGNAL(rsp_calibration_result(int,int,int)),this,SLOT(handle_calibration_result(int,int,int)));
+    QObject::connect(comm,SIGNAL(rsp_set_temperature_result(int)),this,SLOT(handle_set_temperature_result(int)));
 
     QObject::connect(comm,SIGNAL(rsp_unlock_result(int)),this,SLOT(handle_unlock_result(int)));
     QObject::connect(comm,SIGNAL(rsp_lock_result(int)),this,SLOT(handle_lock_result(int)));
@@ -469,4 +478,29 @@ void MainWindow::on_actionabout_triggered()
     Dialog_about about(this);
     about.setWindowTitle("关于");
     about.exec();
+}
+
+void MainWindow::on_set_temperature_button_clicked()
+{
+    int temperature;
+    if (opened == false) {
+        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
+        return;
+    }
+
+    if (!ui->set_temperature_edit->text().isEmpty()) {
+       temperature = ui->set_temperature_edit->text().toInt();
+    }
+
+    emit req_set_temperature(temperature);
+}
+
+void MainWindow::handle_set_temperature_result(int rc)
+{
+    if (rc == 0) {
+       QMessageBox::information(this,"成功","设置温度成功！",QMessageBox::Ok);
+    } else {
+       QMessageBox::warning(this,"失败","设置温度失败！",QMessageBox::Ok);
+    }
+
 }

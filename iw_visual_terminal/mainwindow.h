@@ -24,6 +24,7 @@ public slots:
     void handle_query_weight_result(int result,int level,int ,int,int,int);
     void handle_tare_result(int,int);
     void handle_calibration_result(int,int,int);
+    void handle_set_temperature_result(int);
 
     void handle_unlock_result(int);
     void handle_lock_result(int);
@@ -36,7 +37,7 @@ signals:
     void req_calibration(int,int);
     void req_unlock();
     void req_lock();
-
+    void req_set_temperature(int);
 
 private slots:
     void on_open_button_clicked();
@@ -84,6 +85,8 @@ private slots:
     void handle_rsp_query_temperature(int);
 
     void on_actionabout_triggered();
+
+    void on_set_temperature_button_clicked();
 
 private:
     Ui::MainWindow *ui;
