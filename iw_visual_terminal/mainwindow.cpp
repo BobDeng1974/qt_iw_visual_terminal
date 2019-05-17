@@ -52,7 +52,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->display_3->display("------");
     ui->display_4->display("------");
 
-    QRegExp regExp("[1-9]{0,2}");
+    QRegExp regExp("[0-9]{0,2}");
     ui->set_temperature_edit->setValidator(new QRegExpValidator(regExp, this));
     ui->set_temperature_edit->setText(QString::number(6));
 

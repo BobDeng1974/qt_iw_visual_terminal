@@ -3,12 +3,6 @@
 # Project created by QtCreator 2019-04-19T23:52:18
 #
 #-------------------------------------------------
-VERSION = 1.0.0
-
-QMAKE_TARGET_PRODUCT = iw visual terminal
-QMAKE_TARGET_COMPANY = CH-ML
-QMAKE_TARGET_DESCRIPTION = iw visual terminal
-QMAKE_TARGET_COPYRIGHT = Copyright@2019
 
 QT       += core gui
 QT       += serialport
