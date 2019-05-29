@@ -185,8 +185,8 @@ void communication::handle_rsp()
         }
     break;
     case REQ_CODE_QUERY_TEMPERATURE:/*温度*/
-         if (rsp_size == 5) {
-             temperature = rsp[2];
+         if (rsp_size == 6) {
+             temperature = rsp[3];
           }
     break;
 
