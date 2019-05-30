@@ -82,7 +82,7 @@ private slots:
 
     void handle_rsp_query_door_status(QString status);
     void handle_rsp_query_lock_status(QString status);
-    void handle_rsp_query_temperature(int);
+    void handle_rsp_query_temperature(int,int);
 
     void on_actionabout_triggered();
 

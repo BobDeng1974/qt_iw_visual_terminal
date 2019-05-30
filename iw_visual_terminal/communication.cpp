@@ -112,6 +112,7 @@ void communication::handle_rsp()
 
     int weight1,weight2,weight3,weight4;
     int temperature = 0x7f;
+    int temperature_setting = 0x7f;
 
     QString status("错误");
 
@@ -186,6 +187,7 @@ void communication::handle_rsp()
     break;
     case REQ_CODE_QUERY_TEMPERATURE:/*温度*/
          if (rsp_size == 6) {
+             temperature_setting = rsp[2];
              temperature = rsp[3];
           }
     break;
@@ -213,7 +215,7 @@ err_exit:
     }else if(req_code == REQ_CODE_QUERY_LOCK_STATUS) {
         emit rsp_query_lock_status(status);
     } else if (req_code == REQ_CODE_QUERY_TEMPERATURE) {
-        emit rsp_query_temperature(temperature);
+        emit rsp_query_temperature(temperature_setting,temperature);
     } else if (req_code == REQ_CODE_SET_TEMPERATURE ) {
         rsp_set_temperature_result(rc);
     }

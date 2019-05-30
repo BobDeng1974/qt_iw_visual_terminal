@@ -96,7 +96,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QObject::connect(comm,SIGNAL(rsp_query_door_status(QString)),this,SLOT(handle_rsp_query_door_status(QString)));
     QObject::connect(comm,SIGNAL(rsp_query_lock_status(QString)),this,SLOT(handle_rsp_query_lock_status(QString)));
-    QObject::connect(comm,SIGNAL(rsp_query_temperature(int)),this,SLOT(handle_rsp_query_temperature(int)));
+    QObject::connect(comm,SIGNAL(rsp_query_temperature(int,int)),this,SLOT(handle_rsp_query_temperature(int,int)));
 }
 
 MainWindow::~MainWindow()
@@ -442,12 +442,18 @@ void MainWindow::handle_rsp_query_lock_status(QString status)
     ui->lock_status_display->setText(status);
 }
 
-void MainWindow::handle_rsp_query_temperature(int temperature)
+void MainWindow::handle_rsp_query_temperature(int temperature_setting,int temperature)
 {
     if (temperature == 0x7f) {
         ui->temperature_display->setText("错误");
     }else {
         ui->temperature_display->setNum(temperature);
+    }
+
+    if (temperature_setting == 0x7f) {
+        ui->temperature_setting_display->setText("错误");
+    }else {
+        ui->temperature_setting_display->setNum(temperature_setting);
     }
 }
 

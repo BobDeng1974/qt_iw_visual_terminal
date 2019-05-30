@@ -80,7 +80,7 @@ signals:
     void rsp_lock_result(int);
     void rsp_query_lock_status(QString status);
     void rsp_query_door_status(QString status);
-    void rsp_query_temperature(int);
+    void rsp_query_temperature(int,int);
 
 private:
     QQueue<req_param> *m_req_queue;
