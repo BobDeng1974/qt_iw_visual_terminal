@@ -31,9 +31,10 @@ public:
     };
 
     enum {
-        REQ_CODE_TARE = 1,
-        REQ_CODE_CALIBRATION = 2,
-        REQ_CODE_QUERY_WEIGHT = 3,
+        REQ_CODE_TARE = 0x01,
+        REQ_CODE_CALIBRATION = 0x02,
+        REQ_CODE_QUERY_WEIGHT = 0x03,
+        REQ_CODE_QUERY_WEIGHT_LAYER = 0x04,
         REQ_CODE_QUERY_DOOR_STATUS = 0x11,
         REQ_CODE_UNLOCK = 0x21,
         REQ_CODE_LOCK = 0x22,
@@ -65,6 +66,7 @@ public slots:
     void handle_query_door_status();
     void handle_query_temperature();
     void handle_set_temperature(int);
+    void handle_query_weight_layer();
 
 signals:
 
@@ -78,10 +80,10 @@ signals:
 
     void rsp_unlock_result(int);
     void rsp_lock_result(int);
-    void rsp_query_lock_status(QString status);
-    void rsp_query_door_status(QString status);
-    void rsp_query_temperature(int,int);
-
+    void rsp_query_lock_status(int rc,QString status);
+    void rsp_query_door_status(int rc,QString status);
+    void rsp_query_temperature_result(int,int,int);
+    void rsp_query_weight_layer_result(int,int);
 private:
     QQueue<req_param> *m_req_queue;
     QTimer *m_req_timer;

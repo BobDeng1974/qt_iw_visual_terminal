@@ -94,9 +94,10 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(comm,SIGNAL(rsp_unlock_result(int)),this,SLOT(handle_unlock_result(int)));
     QObject::connect(comm,SIGNAL(rsp_lock_result(int)),this,SLOT(handle_lock_result(int)));
 
-    QObject::connect(comm,SIGNAL(rsp_query_door_status(QString)),this,SLOT(handle_rsp_query_door_status(QString)));
-    QObject::connect(comm,SIGNAL(rsp_query_lock_status(QString)),this,SLOT(handle_rsp_query_lock_status(QString)));
-    QObject::connect(comm,SIGNAL(rsp_query_temperature(int,int)),this,SLOT(handle_rsp_query_temperature(int,int)));
+    QObject::connect(comm,SIGNAL(rsp_query_door_status(int,QString)),this,SLOT(handle_rsp_query_door_status(int,QString)));
+    QObject::connect(comm,SIGNAL(rsp_query_lock_status(int,QString)),this,SLOT(handle_rsp_query_lock_status(int,QString)));
+    QObject::connect(comm,SIGNAL(rsp_query_temperature_result(int,int,int)),this,SLOT(handle_rsp_query_temperature_result(int,int,int)));
+    QObject::connect(comm,SIGNAL(rsp_query_weight_layer_result(int,int)),this,SLOT(handle_rsp_query_weight_layer_result(int,int)));
 }
 
 MainWindow::~MainWindow()
@@ -139,9 +140,17 @@ void MainWindow::handle_close_serial_port_result(int result)
         ui->baudrate_list->setEnabled(true);
         ui->parity_list->setEnabled(true);
 
+        ui->door_status_display->setStyleSheet("color:black");
+        ui->lock_status_display->setStyleSheet("color:black");
+        ui->temperature_display->setStyleSheet("color:black");
+        ui->temperature_setting_display->setStyleSheet("color:black");
+        ui->weight_layer_display->setStyleSheet("color:black");
+
         ui->door_status_display->setText("未知");
         ui->lock_status_display->setText("未知");
         ui->temperature_display->setText("未知");
+        ui->temperature_setting_display->setText("未知");
+        ui->weight_layer_display->setText("未知");
 
     } else {
         QMessageBox::warning(this,"错误",ui->port_list->currentText() + "关闭失败！",QMessageBox::Ok);
@@ -431,32 +440,62 @@ void MainWindow::on_all_on_top_check_button_stateChanged(int arg1)
 
 
 
-void MainWindow::handle_rsp_query_door_status(QString status)
+void MainWindow::handle_rsp_query_door_status(int rc,QString status)
 {
+    if (rc == 0) {
+        ui->door_status_display->setStyleSheet("color:blue");
+    } else {
+        ui->door_status_display->setStyleSheet("color:red");
+    }
+
     ui->door_status_display->setText(status);
 }
 
 
-void MainWindow::handle_rsp_query_lock_status(QString status)
+void MainWindow::handle_rsp_query_lock_status(int rc,QString status)
 {
+    if (rc == 0) {
+        ui->lock_status_display->setStyleSheet("color:blue");
+    } else {
+        ui->lock_status_display->setStyleSheet("color:red");
+    }
+
     ui->lock_status_display->setText(status);
 }
 
-void MainWindow::handle_rsp_query_temperature(int temperature_setting,int temperature)
+void MainWindow::handle_rsp_query_temperature_result(int rc,int temperature_setting,int temperature)
 {
-    if (temperature == 0x7f) {
+    if (rc == 0) {
+        if (temperature != 0x7f) {
+            ui->temperature_display->setStyleSheet("color:blue");
+            ui->temperature_display->setNum(temperature);
+        } else {
+            ui->temperature_display->setStyleSheet("color:red");
+            ui->temperature_display->setText("错误");
+        }
+
+        ui->temperature_setting_display->setStyleSheet("color:blue");
+        ui->temperature_setting_display->setNum(temperature_setting);
+
+    } else {
+        ui->temperature_display->setStyleSheet("color:red");
+        ui->temperature_setting_display->setStyleSheet("color:red");
         ui->temperature_display->setText("错误");
-    }else {
-        ui->temperature_display->setNum(temperature);
+        ui->temperature_setting_display->setText("错误");
     }
 
-    if (temperature_setting == 0x7f) {
-        ui->temperature_setting_display->setText("错误");
-    }else {
-        ui->temperature_setting_display->setNum(temperature_setting);
-    }
 }
 
+void MainWindow::handle_rsp_query_weight_layer_result(int rc,int weight_layer)
+{
+    if (rc == 0) {
+        ui->weight_layer_display->setStyleSheet("color:blue");
+        ui->weight_layer_display->setNum(weight_layer);
+    } else {
+        ui->weight_layer_display->setStyleSheet("color:red");
+        ui->weight_layer_display->setText("错误");
+    }
+}
 
 
 void MainWindow::on_open_lock_button_clicked()

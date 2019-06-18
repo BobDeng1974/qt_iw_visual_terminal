@@ -80,9 +80,10 @@ private slots:
 
     void on_close_lock_button_clicked();
 
-    void handle_rsp_query_door_status(QString status);
-    void handle_rsp_query_lock_status(QString status);
-    void handle_rsp_query_temperature(int,int);
+    void handle_rsp_query_door_status(int rc,QString status);
+    void handle_rsp_query_lock_status(int rc,QString status);
+    void handle_rsp_query_temperature_result(int,int,int);
+    void handle_rsp_query_weight_layer_result(int,int);
 
     void on_actionabout_triggered();
 
