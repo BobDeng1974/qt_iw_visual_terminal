@@ -37,6 +37,7 @@ void communication::insert_period_query_req()
         handle_query_lock_status();
         handle_query_temperature();
         handle_query_weight_layer();
+        handle_query_fw_version();
         duty_multiple  = 0;
     }
 
@@ -111,10 +112,11 @@ void communication::handle_rsp()
     int rc = -1;
     uint16_t crc_recv,crc_calculate;
 
-    int weight1,weight2,weight3,weight4;
+    int weight1 = 0,weight2 = 0,weight3 = 0,weight4 = 0;
     int temperature = 0x7f;
     int temperature_setting = 0x7f;
-    int weight_layer;
+    int weight_layer = 0;
+    int fw_version = 0;
 
     QString status("错误");
 
@@ -202,6 +204,12 @@ void communication::handle_rsp()
             weight_layer = rsp[2];
          }
     break;
+    case REQ_CODE_QUERY_FW_VERSION:/*固件版本*/
+        if (rsp_size == 7) {
+            rc = 0;
+            fw_version = rsp[2] << 16 |rsp[3] << 8 |rsp[4];
+         }
+    break;
     default:
         qWarning("协议错误.");
 
@@ -230,7 +238,9 @@ err_exit:
         emit rsp_set_temperature_result(rc);
     } else if (req_code == REQ_CODE_QUERY_WEIGHT_LAYER ) {
         emit rsp_query_weight_layer_result(rc,weight_layer);
-}
+    } else if (req_code == REQ_CODE_QUERY_FW_VERSION ) {
+        emit rsp_query_fw_vrersion_result(rc,fw_version);
+    }
 
     qDebug("rsp result--> code:%d rc:%d",req_code,rc);
     qDebug("restart req timer.");
@@ -596,4 +606,33 @@ void communication::handle_query_weight_layer()
 
     m_req_queue->enqueue(status);
     qDebug("enqueue query weight layer req. queue size:%d.",m_req_queue->size());
+}
+
+/*查询固件版本*/
+void communication::handle_query_fw_version()
+{
+    req_param status;
+
+    uint16_t crc16;
+
+    if (m_opened == false){
+        return;
+    }
+
+    status.timeout = RSP_FW_VERSION_TIMEOUT;
+    status.code = REQ_CODE_QUERY_FW_VERSION;
+
+
+    status.size = 4;
+
+    status.send[0] = 0x01;
+    status.send[1] = status.code;
+
+
+    crc16 = m_crc->calculate_crc((uint8_t *)status.send,status.size - 2);
+    status.send[2] = (crc16 >> 8);
+    status.send[3] = (crc16 & 0xFF);
+
+    m_req_queue->enqueue(status);
+    qDebug("enqueue query fw req. queue size:%d.",m_req_queue->size());
 }

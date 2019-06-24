@@ -23,11 +23,12 @@ public:
         RSP_DOOR_STATUS_TIMEOUT = 50,
         RSP_LOCK_STATUS_TIMEOUT = 50,
         RSP_TEMPERATURE_TIMEOUT = 50,
+        RSP_FW_VERSION_TIMEOUT = 50,
         RSP_SET_TEMPERATURE_TIMEOUT = 500,
         RSP_CALIBRATION_TIMEOUT = 600,
         RSP_REMOVE_TARE_TIMEOUT = 600,
-        RSP_LOCK_TIMEOUT = 1000,
-        RSP_UNLOCK_TIMEOUT = 1000,
+        RSP_LOCK_TIMEOUT = 1100,
+        RSP_UNLOCK_TIMEOUT = 1100,
     };
 
     enum {
@@ -40,6 +41,7 @@ public:
         REQ_CODE_LOCK = 0x22,
         REQ_CODE_QUERY_LOCK_STATUS = 0x23,
         REQ_CODE_QUERY_TEMPERATURE = 0x41,
+        REQ_CODE_QUERY_FW_VERSION = 0x52,
         REQ_CODE_SET_TEMPERATURE = 0x0A
     };
 
@@ -67,6 +69,7 @@ public slots:
     void handle_query_temperature();
     void handle_set_temperature(int);
     void handle_query_weight_layer();
+    void handle_query_fw_version();
 
 signals:
 
@@ -84,6 +87,7 @@ signals:
     void rsp_query_door_status(int rc,QString status);
     void rsp_query_temperature_result(int,int,int);
     void rsp_query_weight_layer_result(int,int);
+    void rsp_query_fw_vrersion_result(int,int);
 private:
     QQueue<req_param> *m_req_queue;
     QTimer *m_req_timer;

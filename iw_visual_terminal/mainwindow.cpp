@@ -98,6 +98,8 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(comm,SIGNAL(rsp_query_lock_status(int,QString)),this,SLOT(handle_rsp_query_lock_status(int,QString)));
     QObject::connect(comm,SIGNAL(rsp_query_temperature_result(int,int,int)),this,SLOT(handle_rsp_query_temperature_result(int,int,int)));
     QObject::connect(comm,SIGNAL(rsp_query_weight_layer_result(int,int)),this,SLOT(handle_rsp_query_weight_layer_result(int,int)));
+    QObject::connect(comm,SIGNAL(rsp_query_fw_vrersion_result(int,int)),this,SLOT(handle_rsp_query_fw_vrersion_result(int,int)));
+
 }
 
 MainWindow::~MainWindow()
@@ -439,7 +441,7 @@ void MainWindow::on_all_on_top_check_button_stateChanged(int arg1)
 }
 
 
-
+/*处理回应的查询门状态*/
 void MainWindow::handle_rsp_query_door_status(int rc,QString status)
 {
     if (rc == 0) {
@@ -451,7 +453,7 @@ void MainWindow::handle_rsp_query_door_status(int rc,QString status)
     ui->door_status_display->setText(status);
 }
 
-
+/*处理回应的查询锁状态*/
 void MainWindow::handle_rsp_query_lock_status(int rc,QString status)
 {
     if (rc == 0) {
@@ -463,6 +465,7 @@ void MainWindow::handle_rsp_query_lock_status(int rc,QString status)
     ui->lock_status_display->setText(status);
 }
 
+/*处理回应的查询温度状态*/
 void MainWindow::handle_rsp_query_temperature_result(int rc,int temperature_setting,int temperature)
 {
     if (rc == 0) {
@@ -485,7 +488,7 @@ void MainWindow::handle_rsp_query_temperature_result(int rc,int temperature_sett
     }
 
 }
-
+/*处理回应的查询称重单元数量状态*/
 void MainWindow::handle_rsp_query_weight_layer_result(int rc,int weight_layer)
 {
     if (rc == 0) {
@@ -494,6 +497,18 @@ void MainWindow::handle_rsp_query_weight_layer_result(int rc,int weight_layer)
     } else {
         ui->weight_layer_display->setStyleSheet("color:red");
         ui->weight_layer_display->setText("错误");
+    }
+}
+
+/*处理回应的查询称重单元数量状态*/
+void MainWindow::handle_rsp_query_fw_vrersion_result(int rc,int fw_version)
+{
+    if (rc == 0) {
+        ui->fw_version_display->setStyleSheet("color:blue");
+        ui->fw_version_display->setText(" v" + QString::number((fw_version >> 16) & 0xff) + "."+ QString::number((fw_version >> 8) & 0xff) + "." + QString::number(fw_version & 0xff));
+    } else {
+        ui->fw_version_display->setStyleSheet("color:red");
+        ui->fw_version_display->setText("错误");
     }
 }
 

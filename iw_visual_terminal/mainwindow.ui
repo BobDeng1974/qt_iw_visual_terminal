@@ -36,7 +36,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>创新奇智冷柜生产调试终端v1.0.6</string>
+   <string>创新奇智冷柜生产调试终端v1.0.7</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QLCDNumber" name="display_4">
@@ -613,10 +613,10 @@
    <widget class="QPushButton" name="open_lock_button">
     <property name="geometry">
      <rect>
-      <x>790</x>
+      <x>780</x>
       <y>110</y>
       <width>141</width>
-      <height>51</height>
+      <height>41</height>
      </rect>
     </property>
     <property name="font">
@@ -634,10 +634,10 @@
    <widget class="QPushButton" name="close_lock_button">
     <property name="geometry">
      <rect>
-      <x>790</x>
-      <y>170</y>
+      <x>780</x>
+      <y>160</y>
       <width>141</width>
-      <height>51</height>
+      <height>41</height>
      </rect>
     </property>
     <property name="font">
@@ -770,9 +770,9 @@
    <widget class="QLabel" name="label_13">
     <property name="geometry">
      <rect>
-      <x>840</x>
+      <x>829</x>
       <y>400</y>
-      <width>20</width>
+      <width>21</width>
       <height>31</height>
      </rect>
     </property>
@@ -874,6 +874,48 @@
       <x>900</x>
       <y>300</y>
       <width>41</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial</family>
+      <pointsize>11</pointsize>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>未知</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_16">
+    <property name="geometry">
+     <rect>
+      <x>780</x>
+      <y>210</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial</family>
+      <pointsize>11</pointsize>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>固件版本：</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="fw_version_display">
+    <property name="geometry">
+     <rect>
+      <x>870</x>
+      <y>210</y>
+      <width>91</width>
       <height>31</height>
      </rect>
     </property>

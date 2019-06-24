@@ -84,6 +84,7 @@ private slots:
     void handle_rsp_query_lock_status(int rc,QString status);
     void handle_rsp_query_temperature_result(int,int,int);
     void handle_rsp_query_weight_layer_result(int,int);
+    void handle_rsp_query_fw_vrersion_result(int,int);
 
     void on_actionabout_triggered();
 
