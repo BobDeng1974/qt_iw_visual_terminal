@@ -36,7 +36,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>创新奇智冷柜生产调试终端v1.0.5</string>
+   <string>创新奇智冷柜生产调试终端v1.0.6</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QLCDNumber" name="display_4">
