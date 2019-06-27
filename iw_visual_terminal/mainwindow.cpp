@@ -147,12 +147,14 @@ void MainWindow::handle_close_serial_port_result(int result)
         ui->temperature_display->setStyleSheet("color:black");
         ui->temperature_setting_display->setStyleSheet("color:black");
         ui->weight_layer_display->setStyleSheet("color:black");
+        ui->fw_version_display->setStyleSheet("color:black");
 
         ui->door_status_display->setText("未知");
         ui->lock_status_display->setText("未知");
         ui->temperature_display->setText("未知");
         ui->temperature_setting_display->setText("未知");
         ui->weight_layer_display->setText("未知");
+        ui->fw_version_display->setText("未知");
 
     } else {
         QMessageBox::warning(this,"错误",ui->port_list->currentText() + "关闭失败！",QMessageBox::Ok);
