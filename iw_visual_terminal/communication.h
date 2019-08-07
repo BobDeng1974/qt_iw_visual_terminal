@@ -50,6 +50,7 @@ public:
     };
     void handle_query_weight_req(void);
 
+    QStringList get_port_name_list();
 public slots:
     void handle_open_serial_port_req(QString port_name,int baudrates,int data_bits,int parity);
     void handle_close_serial_port_req(QString port_name);

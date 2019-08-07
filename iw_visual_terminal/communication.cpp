@@ -1,6 +1,7 @@
 #include "qstring.h"
 #include "communication.h"
 #include "QtSerialPort/qserialport.h"
+#include "QtSerialPort/QSerialPortInfo"
 #include "qthread.h"
 #include "QTime"
 
@@ -23,6 +24,21 @@ communication::communication(QObject *parent) : QObject(parent)
 
 }
 
+QStringList communication::get_port_name_list()
+{
+    QStringList m_serialPortName;
+
+    QList<QSerialPortInfo>  serial_info;
+    QSerialPortInfo info;
+
+    serial_info = QSerialPortInfo::availablePorts();
+    m_serialPortName.clear();
+
+     foreach(info,serial_info) {
+         m_serialPortName.append(info.portName());
+     }
+    return m_serialPortName;
+}
 
 /*插入周期轮询请求*/
 void communication::insert_period_query_req()

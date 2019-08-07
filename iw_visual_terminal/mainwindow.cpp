@@ -11,23 +11,32 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    /*添加端口*/
-    ui->port_list->addItem("COM1");
-    ui->port_list->addItem("COM2");
-    ui->port_list->addItem("COM3");
-    ui->port_list->addItem("COM4");
-    ui->port_list->addItem("COM5");
-    ui->port_list->addItem("COM6");
-    ui->port_list->addItem("COM7");
-    ui->port_list->addItem("COM8");
-    ui->port_list->addItem("COM9");
-    ui->port_list->addItem("COM10");
-    ui->port_list->addItem("COM11");
-    ui->port_list->addItem("COM12");
-    ui->port_list->addItem("COM13");
-    ui->port_list->addItem("COM14");
-    ui->port_list->setCurrentIndex(0);
 
+
+    QRegExp regExp("-?[0-9]{0,2}");
+    ui->set_temperature_edit->setValidator(new QRegExpValidator(regExp, this));
+    ui->set_temperature_edit->setText(QString::number(6));
+
+    opened = false;
+
+    QThread *comm_thread = new QThread(0);
+
+    comm = new communication(0);
+    comm->moveToThread(comm_thread);
+    comm->m_serial->moveToThread(comm_thread);
+
+    comm_thread->start();
+
+    /*添加端口*/
+    QStringList m_serialPortName;
+
+    m_serialPortName  = comm->get_port_name_list();
+    QString name;
+    foreach(name,m_serialPortName) {
+        ui->port_list->addItem(name);
+    }
+
+    ui->port_list->setCurrentIndex(0);
     /*添加波特率*/
     ui->baudrate_list->addItem("115200");
     ui->baudrate_list->addItem("57600");
@@ -51,21 +60,6 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->display_2->display("------");
     ui->display_3->display("------");
     ui->display_4->display("------");
-
-    QRegExp regExp("[0-9]{0,2}");
-    ui->set_temperature_edit->setValidator(new QRegExpValidator(regExp, this));
-    ui->set_temperature_edit->setText(QString::number(6));
-
-    opened = false;
-
-    QThread *comm_thread = new QThread(0);
-
-    comm = new communication(0);
-
-    comm->moveToThread(comm_thread);
-    comm->m_serial->moveToThread(comm_thread);
-
-    comm_thread->start();
 
 
      /*-从UI到comm--*/
@@ -473,14 +467,14 @@ void MainWindow::handle_rsp_query_temperature_result(int rc,int temperature_sett
     if (rc == 0) {
         if (temperature != 0x7f) {
             ui->temperature_display->setStyleSheet("color:blue");
-            ui->temperature_display->setNum(temperature);
+            ui->temperature_display->setNum((int8_t)temperature);
         } else {
             ui->temperature_display->setStyleSheet("color:red");
             ui->temperature_display->setText("错误");
         }
 
         ui->temperature_setting_display->setStyleSheet("color:blue");
-        ui->temperature_setting_display->setNum(temperature_setting);
+        ui->temperature_setting_display->setNum((int8_t)temperature_setting);
 
     } else {
         ui->temperature_display->setStyleSheet("color:red");
