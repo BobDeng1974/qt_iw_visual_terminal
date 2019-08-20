@@ -16,30 +16,20 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+    enum {
+        LOOP_TIMEOUT = 10
+    };
+    enum {
+        QUERY_WEIGHT_DUCY_MULTIPLE = 4
+    };
 
-public slots:
-    void handle_open_serial_port_result(int result);
-    void handle_close_serial_port_result(int result);
-
-    void handle_query_weight_result(int result,int level,int ,int,int,int);
     void handle_tare_result(int,int);
     void handle_calibration_result(int,int,int);
-    void handle_set_temperature_result(int);
-
-    void handle_unlock_result(int);
-    void handle_lock_result(int);
-
-signals:
-    void req_open_serial_port(QString port_name,int baudrates,int data_bits,int parity);
-    void req_close_serial_port(QString port_name);
-
-    void req_tare(int);
-    void req_calibration(int,int);
-    void req_unlock();
-    void req_lock();
-    void req_set_temperature(int);
 
 private slots:
+
+    int loop_timer_timeout();
+
     void on_open_button_clicked();
 
     void on_tare_button_4_clicked();
@@ -80,11 +70,6 @@ private slots:
 
     void on_close_lock_button_clicked();
 
-    void handle_rsp_query_door_status(int rc,QString status);
-    void handle_rsp_query_lock_status(int rc,QString status);
-    void handle_rsp_query_temperature_result(int,int,int);
-    void handle_rsp_query_weight_layer_result(int,int);
-    void handle_rsp_query_fw_vrersion_result(int,int);
 
     void on_actionabout_triggered();
 
@@ -92,8 +77,9 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
-    communication *comm;
-    bool opened;
+    communication m_comm;
+    QTimer *m_loop_timer;
+    int m_duty_multiple;
 };
 
 #endif // MAINWINDOW_H

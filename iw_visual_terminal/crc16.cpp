@@ -70,7 +70,7 @@ const uint8_t table_crc_lo[] = {
 * @note
 */
 
-uint16_t crc16::calculate_crc(uint8_t *src, int size)
+uint16_t crc16::calculate(uint8_t *src, int size)
 {
     uint8_t crc_hi = 0xFF; /* high CRC byte initialized */
     uint8_t crc_lo = 0xFF; /* low CRC byte initialized */
@@ -78,12 +78,12 @@ uint16_t crc16::calculate_crc(uint8_t *src, int size)
 
    /* calculate the CRC  */
     while (size --) {
-        i = crc_hi ^ *src++;
-        crc_hi = crc_lo ^ table_crc_hi[i];
-        crc_lo = table_crc_lo[i];
+        i = crc_lo ^ *src++;
+        crc_lo = crc_hi ^ table_crc_hi[i];
+        crc_hi = table_crc_lo[i];
     }
-
-    return uint16_t(crc_hi << 8 | crc_lo);
+    //return (crc_hi << 8 | crc_lo);
+    return (crc_lo << 8 | crc_hi);
 }
 
 crc16::crc16()

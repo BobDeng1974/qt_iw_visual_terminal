@@ -7,7 +7,7 @@
 #include <QMutex>
 #include "crc16.h"
 #include "qqueue.h"
-#include "req_param.h"
+#include "protocol.h"
 
 
 class communication : public QObject
@@ -17,93 +17,44 @@ public:
     explicit communication(QObject *parent = nullptr);
     QSerialPort *m_serial;
     enum {
-        REQ_TIMEOUT = 5,
-        CONTINUE_TIMEOUT = 10,
-        RSP_WEIGHT_TIMEOUT = 50,
-        RSP_DOOR_STATUS_TIMEOUT = 50,
-        RSP_LOCK_STATUS_TIMEOUT = 50,
-        RSP_TEMPERATURE_TIMEOUT = 50,
-        RSP_FW_VERSION_TIMEOUT = 50,
-        RSP_SET_TEMPERATURE_TIMEOUT = 500,
-        RSP_CALIBRATION_TIMEOUT = 600,
-        RSP_REMOVE_TARE_TIMEOUT = 600,
-        RSP_LOCK_TIMEOUT = 1100,
-        RSP_UNLOCK_TIMEOUT = 1100,
-    };
-
-    enum {
-        REQ_CODE_TARE = 0x01,
-        REQ_CODE_CALIBRATION = 0x02,
-        REQ_CODE_QUERY_WEIGHT = 0x03,
-        REQ_CODE_QUERY_WEIGHT_LAYER = 0x04,
-        REQ_CODE_QUERY_DOOR_STATUS = 0x11,
-        REQ_CODE_UNLOCK = 0x21,
-        REQ_CODE_LOCK = 0x22,
-        REQ_CODE_QUERY_LOCK_STATUS = 0x23,
-        REQ_CODE_QUERY_TEMPERATURE = 0x41,
-        REQ_CODE_QUERY_FW_VERSION = 0x52,
-        REQ_CODE_SET_TEMPERATURE = 0x0A
+        LOOP_TIMEOUT = 5,
+        FRAME_TIMEOUT = 5
     };
 
     enum {
         QUERY_WEIGHT_DUCY_MULTIPLE = 4
     };
-    void handle_query_weight_req(void);
 
     QStringList get_port_name_list();
+    int open_serial(QString port_name,int baud_rates,int data_bits,int parity);
+    int close_serial(QString port_name);
+    int is_serial_open();
+
+    int remove_tare_weight(int addr);
+    int calibrate_weight(int addr,int weight);
+    int set_temperature(int setting);
+    int lock_lock();
+    int unlock_lcok();
+    int query_net_weight(int *weight1,int *weight2,int *weight3,int *weight4);
+    int query_temperature(int *setting ,int *temperature);
+    QString query_door_status();
+    QString query_lock_status();
+    int query_layer_cnt();
+    QString query_fw_version();
+
 public slots:
-    void handle_open_serial_port_req(QString port_name,int baudrates,int data_bits,int parity);
-    void handle_close_serial_port_req(QString port_name);
 
-    void handle_req_timeout_event(void);
-
-    void insert_period_query_req();
-    void wait_rsp(int);
-    void handle_rsp(void);
-
-    void handle_tare_req(int);
-    void handle_calibration_req(int,int);
-    void handle_req_unlock();
-    void handle_req_lock();
-    void handle_query_lock_status();
-    void handle_query_door_status();
-    void handle_query_temperature();
-    void handle_set_temperature(int);
-    void handle_query_weight_layer();
-    void handle_query_fw_version();
 
 signals:
 
-    void rsp_open_serial_port_result(int result);
-    void rsp_close_serial_port_result(int result);
 
-    void rsp_query_weight_result(int result,int level,int,int,int,int);
-    void rsp_tare_result(int level,int result);
-    void rsp_calibration_result(int level,int calibration_weight,int result);
-    void rsp_set_temperature_result(int rc);
-
-    void rsp_unlock_result(int);
-    void rsp_lock_result(int);
-    void rsp_query_lock_status(int rc,QString status);
-    void rsp_query_door_status(int rc,QString status);
-    void rsp_query_temperature_result(int,int,int);
-    void rsp_query_weight_layer_result(int,int);
-    void rsp_query_fw_vrersion_result(int,int);
 private:
-    QQueue<req_param> *m_req_queue;
-    QTimer *m_req_timer;
+    int send_request(QByteArray);
+    QByteArray wait_response(int timeout);
+    int lock_serial_mutex();
+    int unlock_serial_mutex();
+    QMutex m_serial_mutex;
 
-
-    bool   m_opened;
-    crc16 *m_crc;
-    bool   m_busy;
-
-    int req_level;
-    int req_code;
-    int req_weight;
-    uint8_t rsp[100];
-    int rsp_size;
-    int duty_multiple;
 
 };
 
