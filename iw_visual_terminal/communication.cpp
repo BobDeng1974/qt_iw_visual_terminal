@@ -387,3 +387,47 @@ exit:
     unlock_serial_mutex();
     return fw_version;
 }
+
+/*控制开压缩机*/
+int communication::control_pwr_on_compressor()
+{
+    int rc;
+    int value = 1;
+    QByteArray request,response;
+    protocol protocol;
+
+    request = protocol.construct(protocol::PROTOCOL_CODE_CTRL_COMPRESSOR,1,&value,protocol::PROTOCOL_CTRL_COMPRESSOR_TIMEOUT);
+
+    lock_serial_mutex();
+    rc = send_request(request);
+    if (rc == 0) {
+        response = wait_response(protocol.get_timeout());
+        rc = protocol.parse(response);
+    }
+
+exit:
+    unlock_serial_mutex();
+    return rc;
+}
+
+/*控制关压缩机*/
+int communication::control_pwr_off_compressor()
+{
+    int rc;
+    int value = 0;
+    QByteArray request,response;
+    protocol protocol;
+
+    request = protocol.construct(protocol::PROTOCOL_CODE_CTRL_COMPRESSOR,1,&value,protocol::PROTOCOL_CTRL_COMPRESSOR_TIMEOUT);
+
+    lock_serial_mutex();
+    rc = send_request(request);
+    if (rc == 0) {
+        response = wait_response(protocol.get_timeout());
+        rc = protocol.parse(response);
+    }
+
+exit:
+    unlock_serial_mutex();
+    return rc;
+}

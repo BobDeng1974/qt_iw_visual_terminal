@@ -6,20 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>969</width>
-    <height>507</height>
+    <width>980</width>
+    <height>520</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>969</width>
-    <height>507</height>
+    <width>980</width>
+    <height>520</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>969</width>
-    <height>507</height>
+    <width>980</width>
+    <height>520</height>
    </size>
   </property>
   <property name="baseSize">
@@ -36,7 +36,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>创新奇智冷柜生产调试终端v1.0.10</string>
+   <string>创新奇智冷柜生产调试终端v1.0.11</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QLCDNumber" name="display_4">
@@ -615,7 +615,7 @@
      <rect>
       <x>780</x>
       <y>110</y>
-      <width>141</width>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -634,9 +634,9 @@
    <widget class="QPushButton" name="close_lock_button">
     <property name="geometry">
      <rect>
-      <x>780</x>
-      <y>160</y>
-      <width>141</width>
+      <x>870</x>
+      <y>110</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -931,6 +931,48 @@
      <string>未知</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pwr_off_compressor_button">
+    <property name="geometry">
+     <rect>
+      <x>870</x>
+      <y>160</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial</family>
+      <pointsize>11</pointsize>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>关压缩机</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pwr_on_compressor_button">
+    <property name="geometry">
+     <rect>
+      <x>780</x>
+      <y>160</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="font">
+     <font>
+      <family>Arial</family>
+      <pointsize>11</pointsize>
+      <weight>75</weight>
+      <bold>true</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>开压缩机</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -946,7 +988,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>969</width>
+     <width>980</width>
      <height>23</height>
     </rect>
    </property>

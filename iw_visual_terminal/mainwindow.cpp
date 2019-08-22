@@ -495,3 +495,35 @@ void MainWindow::on_set_temperature_button_clicked()
 }
 
 
+
+void MainWindow::on_pwr_on_compressor_button_clicked()
+{
+    int rc;
+
+    if (!m_comm.is_serial_open()) {
+        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
+        return;
+    }
+    rc = m_comm.control_pwr_on_compressor();
+    if (rc == 0) {
+       QMessageBox::information(this,"成功","开压缩机成功！",QMessageBox::Ok);
+    } else {
+       QMessageBox::warning(this,"失败","开压缩机失败！",QMessageBox::Ok);
+    }
+}
+
+void MainWindow::on_pwr_off_compressor_button_clicked()
+{
+    int rc;
+
+    if (!m_comm.is_serial_open()) {
+        QMessageBox::warning(this,"错误","串口没有打开！",QMessageBox::Ok);
+        return;
+    }
+    rc = m_comm.control_pwr_off_compressor();
+    if (rc == 0) {
+       QMessageBox::information(this,"成功","关压缩机成功！",QMessageBox::Ok);
+    } else {
+       QMessageBox::warning(this,"失败","关压缩机失败！",QMessageBox::Ok);
+    }
+}

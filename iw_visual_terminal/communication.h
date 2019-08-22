@@ -41,7 +41,8 @@ public:
     QString query_lock_status();
     int query_layer_cnt();
     QString query_fw_version();
-
+    int control_pwr_on_compressor();
+    int control_pwr_off_compressor();
 public slots:
 
 
@@ -53,6 +54,7 @@ private:
     QByteArray wait_response(int timeout);
     int lock_serial_mutex();
     int unlock_serial_mutex();
+
     QMutex m_serial_mutex;
 
 

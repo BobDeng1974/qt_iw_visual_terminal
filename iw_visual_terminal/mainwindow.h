@@ -75,6 +75,10 @@ private slots:
 
     void on_set_temperature_button_clicked();
 
+    void on_pwr_on_compressor_button_clicked();
+
+    void on_pwr_off_compressor_button_clicked();
+
 private:
     Ui::MainWindow *ui;
     communication m_comm;

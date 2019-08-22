@@ -56,7 +56,7 @@ int protocol::parse(QByteArray response)
         qDebug() << QString("回应head错误");
         return -11;
     }
-    code = response.at(1);
+    code = (uint8_t)response.at(1);
 
     if (code != m_code) {
         qDebug("回应code:%d != %d错误",code,m_code);
@@ -188,6 +188,19 @@ int protocol::parse(QByteArray response)
             rc = -1;
         }
         break;
+    case PROTOCOL_CODE_CTRL_COMPRESSOR:
+        if (value_size != 1) {
+            qDebug() << QString("回应值数量错误");
+            return -15;
+        }
+        if (response.at(2) == 1) {
+            rc = 0;
+        } else {
+            rc = -1;
+        }
+        break;
+    default:
+        rc = -1;
     }
 
    qDebug("rc = %d",rc);
