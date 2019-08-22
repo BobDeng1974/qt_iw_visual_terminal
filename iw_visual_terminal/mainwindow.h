@@ -3,6 +3,9 @@
 
 #include <QMainWindow>
 #include "communication.h"
+#include "QTime"
+#include "stable_data.h"
+
 
 namespace Ui {
 class MainWindow;
@@ -20,7 +23,10 @@ public:
         LOOP_TIMEOUT = 10
     };
     enum {
-        QUERY_WEIGHT_DUCY_MULTIPLE = 4
+        QUERY_WEIGHT_DUCY_MULTIPLE = 11
+    };
+    enum {
+        WEIGHT_STABLE_STANDARD_DEVIATION = 1
     };
 
     void handle_tare_result(int,int);
@@ -82,7 +88,22 @@ private slots:
 private:
     Ui::MainWindow *ui;
     communication m_comm;
+
     QTimer *m_loop_timer;
+
+    QTime m_stable_time;
+
+    stable_data m_stable_weight1;
+    stable_data m_stable_weight2;
+    stable_data m_stable_weight3;
+    stable_data m_stable_weight4;
+
+    int m_is_stable_start1;
+    int m_is_stable_start2;
+    int m_is_stable_start3;
+    int m_is_stable_start4;
+
+    QString m_last_door_status;
     int m_duty_multiple;
 };
 

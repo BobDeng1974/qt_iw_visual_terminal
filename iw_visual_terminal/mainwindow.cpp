@@ -70,27 +70,59 @@ int MainWindow::loop_timer_timeout()
     rc = m_comm.query_net_weight(&weight1,&weight2,&weight3,&weight4);
    if (rc == 0) {
        if ((int16_t)weight1 == -1) {
-         ui->display_1->display("err");
+            ui->display_1->display("err");
        } else {
          ui->display_1->display((int16_t)weight1);
+        if (m_is_stable_start1 == 1) {
+            m_stable_weight1.put_data((int16_t)weight1);
+            if (m_stable_weight1.standard_deviation() >= 0 && m_stable_weight1.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
+                ui->stable_time_display1->setStyleSheet("color:blue");
+                ui->stable_time_display1->setNum(m_stable_time.elapsed());
+                 m_is_stable_start1 = 0;
+            }
+         }
        }
 
        if ((int16_t)weight2 == -1) {
-         ui->display_2->display("err");
+            ui->display_2->display("err");
        } else {
          ui->display_2->display((int16_t)weight2);
+         if (m_is_stable_start2 == 1) {
+             m_stable_weight2.put_data((int16_t)weight2);
+             if (m_stable_weight2.standard_deviation() >= 0 && m_stable_weight2.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
+                 ui->stable_time_display2->setStyleSheet("color:blue");
+                 ui->stable_time_display2->setNum(m_stable_time.elapsed());
+                 m_is_stable_start2 = 0;
+             }
+         }
        }
 
        if ((int16_t)weight3 == -1) {
          ui->display_3->display("err");
        } else {
          ui->display_3->display((int16_t)weight3);
+         if (m_is_stable_start3 == 1) {
+            m_stable_weight3.put_data((int16_t)weight3);
+            if (m_stable_weight3.standard_deviation() >= 0 && m_stable_weight3.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
+                ui->stable_time_display3->setStyleSheet("color:blue");
+                ui->stable_time_display3->setNum(m_stable_time.elapsed());
+                m_is_stable_start3 = 0;
+            }
+         }
        }
 
        if ((int16_t)weight4 == -1) {
          ui->display_4->display("err");
        } else {
          ui->display_4->display((int16_t)weight4);
+         if (m_is_stable_start4 == 1) {
+             m_stable_weight4.put_data((int16_t)weight4);
+             if (m_stable_weight4.standard_deviation() >= 0 && m_stable_weight4.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
+                ui->stable_time_display4->setStyleSheet("color:blue");
+                ui->stable_time_display4->setNum(m_stable_time.elapsed());
+                m_is_stable_start4 = 0;
+             }
+         }
        }
 
    } else {
@@ -113,11 +145,6 @@ int MainWindow::loop_timer_timeout()
         ui->fw_version_display->setStyleSheet("color:blue");
         ui->weight_layer_display->setStyleSheet("color:blue");
 
-        status = m_comm.query_door_status();
-        if (status.compare("错误") == 0) {
-            ui->door_status_display->setStyleSheet("color:red");
-        }
-        ui->door_status_display->setText(status);
 
         status = m_comm.query_lock_status();
         if (status.compare("错误") == 0) {
@@ -156,6 +183,55 @@ int MainWindow::loop_timer_timeout()
         } else {
             ui->fw_version_display->setText(fw_version);
         }
+        /*监测门状态，计算稳定时间*/
+        status = m_comm.query_door_status();
+        if (status.compare("错误") == 0) {
+            ui->door_status_display->setStyleSheet("color:red");
+        }
+        ui->door_status_display->setText(status);
+
+        ui->stable_time_display1->setStyleSheet("color:blue");
+        ui->stable_time_display2->setStyleSheet("color:blue");
+        ui->stable_time_display3->setStyleSheet("color:blue");
+        ui->stable_time_display4->setStyleSheet("color:blue");
+
+        /*统计稳定时间*/
+        if (m_last_door_status.compare(status) != 0) {
+            m_last_door_status = status;
+            /*切换到关闭，开始计时稳定时间*/
+            if (status.compare("关闭") == 0) {
+                m_stable_weight1.clear();
+                m_stable_weight2.clear();
+                m_stable_weight3.clear();
+                m_stable_weight4.clear();
+
+                m_stable_time.start();
+
+                ui->stable_time_display1->setText("wait..");
+                ui->stable_time_display2->setText("wait..");
+                ui->stable_time_display3->setText("wait..");
+                ui->stable_time_display4->setText("wait..");
+                m_is_stable_start1 = 1;
+                m_is_stable_start2 = 1;
+                m_is_stable_start3 = 1;
+                m_is_stable_start4 = 1;
+
+                qDebug("开始计算稳定时间.");
+            } else {
+                ui->stable_time_display1->setText("stop");
+                ui->stable_time_display2->setText("stop");
+                ui->stable_time_display3->setText("stop");
+                ui->stable_time_display4->setText("stop");
+
+                m_is_stable_start1 = 0;
+                m_is_stable_start2 = 0;
+                m_is_stable_start3 = 0;
+                m_is_stable_start4 = 0;
+                qDebug("停止计算稳定时间.");
+
+            }
+        }
+
 
         m_duty_multiple  = 0;
     }
@@ -235,6 +311,24 @@ void MainWindow::on_open_button_clicked()
        ui->temperature_setting_display->setText("未知");
        ui->weight_layer_display->setText("未知");
        ui->fw_version_display->setText("未知");
+
+       ui->stable_time_display1->setStyleSheet("color:black");
+       ui->stable_time_display2->setStyleSheet("color:black");
+       ui->stable_time_display3->setStyleSheet("color:black");
+       ui->stable_time_display4->setStyleSheet("color:black");
+
+       ui->stable_time_display1->setText("未知");
+       ui->stable_time_display2->setText("未知");
+       ui->stable_time_display3->setText("未知");
+       ui->stable_time_display4->setText("未知");
+
+       m_stable_weight1.clear();
+       m_stable_weight2.clear();
+       m_stable_weight3.clear();
+       m_stable_weight4.clear();
+
+       m_last_door_status = "未知";
+
        m_loop_timer->stop();
     }
 }
