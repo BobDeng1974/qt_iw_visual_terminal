@@ -31,14 +31,16 @@ SOURCES += \
         mainwindow.cpp \
     communication.cpp \
     crc16.cpp \
-    protocol.cpp
+    protocol.cpp \
+    stable_data.cpp
 
 HEADERS += \
     dialog_about.h \
         mainwindow.h \
     communication.h \
     crc16.h \
-    protocol.h
+    protocol.h \
+    stable_data.h
 
 FORMS += \
         dialog_about.ui \
