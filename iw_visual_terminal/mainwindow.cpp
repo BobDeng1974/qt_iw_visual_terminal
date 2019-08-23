@@ -73,8 +73,9 @@ int MainWindow::loop_timer_timeout()
             ui->display_1->display("err");
        } else {
          ui->display_1->display((int16_t)weight1);
+         m_stable_weight1.put_data((int16_t)weight1);
         if (m_is_stable_start1 == 1) {
-            m_stable_weight1.put_data((int16_t)weight1);
+
             if (m_stable_weight1.standard_deviation() >= 0 && m_stable_weight1.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
                 ui->stable_time_display1->setStyleSheet("color:blue");
                 ui->stable_time_display1->setNum(m_stable_time.elapsed());
@@ -87,8 +88,9 @@ int MainWindow::loop_timer_timeout()
             ui->display_2->display("err");
        } else {
          ui->display_2->display((int16_t)weight2);
+         m_stable_weight2.put_data((int16_t)weight2);
          if (m_is_stable_start2 == 1) {
-             m_stable_weight2.put_data((int16_t)weight2);
+
              if (m_stable_weight2.standard_deviation() >= 0 && m_stable_weight2.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
                  ui->stable_time_display2->setStyleSheet("color:blue");
                  ui->stable_time_display2->setNum(m_stable_time.elapsed());
@@ -101,8 +103,9 @@ int MainWindow::loop_timer_timeout()
          ui->display_3->display("err");
        } else {
          ui->display_3->display((int16_t)weight3);
+         m_stable_weight3.put_data((int16_t)weight3);
          if (m_is_stable_start3 == 1) {
-            m_stable_weight3.put_data((int16_t)weight3);
+
             if (m_stable_weight3.standard_deviation() >= 0 && m_stable_weight3.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
                 ui->stable_time_display3->setStyleSheet("color:blue");
                 ui->stable_time_display3->setNum(m_stable_time.elapsed());
@@ -115,8 +118,9 @@ int MainWindow::loop_timer_timeout()
          ui->display_4->display("err");
        } else {
          ui->display_4->display((int16_t)weight4);
+         m_stable_weight4.put_data((int16_t)weight4);
          if (m_is_stable_start4 == 1) {
-             m_stable_weight4.put_data((int16_t)weight4);
+
              if (m_stable_weight4.standard_deviation() >= 0 && m_stable_weight4.standard_deviation() <= WEIGHT_STABLE_STANDARD_DEVIATION) {
                 ui->stable_time_display4->setStyleSheet("color:blue");
                 ui->stable_time_display4->setNum(m_stable_time.elapsed());

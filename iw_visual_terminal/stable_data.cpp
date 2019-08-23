@@ -15,6 +15,7 @@ stable_data::stable_data()
 
 int stable_data::clear()
 {
+    /*
     m_size = 0;
     m_offset = 0;
     m_sum = 0;
@@ -23,7 +24,7 @@ int stable_data::clear()
     m_standard_deviation = -1;
 
     memset(m_buffer,0,CIRCLE_BUFFER_SIZE);
-
+    */
     return 0;
 }
 int stable_data::put_data(int value)
