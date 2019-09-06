@@ -20,7 +20,7 @@ public:
     ~MainWindow();
 
     enum {
-        LOOP_TIMEOUT = 10
+        LOOP_TIMEOUT = 50
     };
     enum {
         QUERY_WEIGHT_DUCY_MULTIPLE = 11

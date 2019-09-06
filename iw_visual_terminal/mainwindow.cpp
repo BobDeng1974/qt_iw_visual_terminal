@@ -17,6 +17,14 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->set_temperature_edit->setValidator(new QRegExpValidator(regExp, this));
     ui->set_temperature_edit->setText(QString::number(6));
 
+    /*添加轮询间隔*/
+    ui->loop_interval_list->addItem("10");
+    ui->loop_interval_list->addItem("20");
+    ui->loop_interval_list->addItem("25");
+    ui->loop_interval_list->addItem("50");
+    ui->loop_interval_list->addItem("100");
+    ui->loop_interval_list->setCurrentIndex(3);
+
     /*添加端口*/
     QStringList m_serialPortName;
 
@@ -53,7 +61,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     m_loop_timer = new QTimer();
     m_loop_timer->setSingleShot(1);
-    m_loop_timer->setInterval(LOOP_TIMEOUT);
+
     QObject::connect(m_loop_timer,SIGNAL(timeout()),this,SLOT(loop_timer_timeout()));
 }
 
@@ -279,11 +287,14 @@ void MainWindow::on_open_button_clicked()
         rc = m_comm.open_serial(ui->port_list->currentText(),ui->baudrate_list->currentText().toInt(),ui->data_bits_list->currentText().toInt(),ui->parity_list->currentText().toInt());
         if (rc == 0) {
             ui->open_button->setText("关闭");
-            qDebug("串口打开成功！");
+            qDebug("串口打开成功！");   
             ui->port_list->setEnabled(false);
             ui->data_bits_list->setEnabled(false);
             ui->baudrate_list->setEnabled(false);
             ui->parity_list->setEnabled(false);
+            ui->loop_interval_list->setEnabled(false);
+
+            m_loop_timer->setInterval(ui->loop_interval_list->currentText().toInt());
             m_loop_timer->start();
         } else {
              QMessageBox::warning(this,"错误",ui->port_list->currentText() + "打开失败！",QMessageBox::Ok);
@@ -301,6 +312,7 @@ void MainWindow::on_open_button_clicked()
        ui->data_bits_list->setEnabled(true);
        ui->baudrate_list->setEnabled(true);
        ui->parity_list->setEnabled(true);
+       ui->loop_interval_list->setEnabled(true);
 
        ui->door_status_display->setStyleSheet("color:black");
        ui->lock_status_display->setStyleSheet("color:black");
